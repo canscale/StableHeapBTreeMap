@@ -10,7 +10,7 @@ let insertAtPositionSuite = S.suite("insertAtPosition", [
   S.test("inserting at the first index of an array of all nulls inserts at the first element",
     do {
       let array: [var ?Nat] = [var null, null, null];
-      AU.insertAtPosition<Nat>(array, 3, 0, 0);
+      AU.insertAtPosition<Nat>(array, ?3, 0, 0);
       array;
     },
     M.equals(AUM.varArray<?Nat>(
@@ -21,7 +21,7 @@ let insertAtPositionSuite = S.suite("insertAtPosition", [
   S.test("inserting into the last spot inserts correctly without shifting elements over",
     do {
       let array: [var ?Nat] = [var ?2, ?3, null];
-      AU.insertAtPosition<Nat>(array, 5, 2, 1);
+      AU.insertAtPosition<Nat>(array, ?5, 2, 1);
       array;
     },
     M.equals(AUM.varArray<?Nat>(
@@ -32,7 +32,7 @@ let insertAtPositionSuite = S.suite("insertAtPosition", [
   S.test("inserting into the first index of the array with non-null elements correctly inserts the element and shifts all existing elements over",
     do {
       let array: [var ?Nat] = [var ?2, ?3, null];
-      AU.insertAtPosition<Nat>(array, 1, 0, 1);
+      AU.insertAtPosition<Nat>(array, ?1, 0, 1);
       array;
     },
     M.equals(AUM.varArray<?Nat>(
@@ -43,7 +43,7 @@ let insertAtPositionSuite = S.suite("insertAtPosition", [
   S.test("inserting into a middle index of the array with non-null elements correctly inserts the element and shifts all latter elements over",
     do {
       let array: [var ?Nat] = [var ?2, ?5, null, null];
-      AU.insertAtPosition<Nat>(array, 3, 1, 1);
+      AU.insertAtPosition<Nat>(array, ?3, 1, 1);
       array;
     },
     do {

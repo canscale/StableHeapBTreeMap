@@ -16,10 +16,10 @@ module {
   /// Note: This assumes that there are nulls at the end of the array and that the array is not full.
   /// If the array is already full, this function will overflow the array size when attempting to
   /// insert and will cause the cansiter to trap
-  public func insertAtPosition<T>(array: [var ?T], insertElement: T, insertIndex: Nat, currentLastElementIndex: Nat): () {
+  public func insertAtPosition<T>(array: [var ?T], insertElement: ?T, insertIndex: Nat, currentLastElementIndex: Nat): () {
     // if inserting at the end of the array, don't need to do any shifting and can just insert and return
     if (insertIndex == currentLastElementIndex + 1) {
-      array[insertIndex] := ?insertElement;
+      array[insertIndex] := insertElement;
       return;
     };
 
@@ -29,7 +29,7 @@ module {
     label l loop {
       array[j+1] := array[j];
       if (j == insertIndex) {
-        array[j] := ?insertElement;
+        array[j] := insertElement;
         break l;
       };
 

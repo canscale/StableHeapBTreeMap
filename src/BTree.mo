@@ -255,7 +255,7 @@ module {
   /// Inserts element at the given index into a non-full leaf node
   func insertAtIndexOfNonFullNodeData<K, V>(data: Data<K, V>, kvPair: (K, V), insertIndex: Nat): () {
     let currentLastElementIndex = if (data.count == 0) { 0 } else { Int.abs(data.count - 1) };
-    AU.insertAtPosition<(K, V)>(data.kvs, kvPair, insertIndex, currentLastElementIndex);
+    AU.insertAtPosition<(K, V)>(data.kvs, ?kvPair, insertIndex, currentLastElementIndex);
 
     // increment the count of data in this node since just inserted an element
     data.count += 1;
