@@ -87,6 +87,322 @@ module {
   };
 
 
+  /// Deletes an element from a BTree
+  public func delete<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K): ?V {
+    switch(tree.root) {
+      case (#leaf(leafNode)) {
+        // TODO: think about how this can be optimized so don't have to do two steps (search and then insert)?
+        switch(NU.getKeyIndex<K, V>(leafNode.data, compare, key)) {
+          case (#keyFound(deleteIndex)) { 
+            leafNode.data.count -= 1;
+            let (_, deletedValue) = AU.deleteAndShiftValuesOver<(K, V)>(leafNode.data.kvs, deleteIndex);
+            ?deletedValue
+          };
+          case _ { null }
+        }
+
+      };
+      case (#internal(internalNode)) { 
+        switch(internalDeleteHelper(internalNode, tree.order, compare, key, false)) {
+          case (#delete(value)) { value };
+          case (#mergeChild({ internalChild; deletedValue })) {
+            if (internalChild.data.count > 0) {
+              tree.root := #internal(internalChild);
+            }
+            // This case will be hit if the BTree has order == 4
+            // In this case, the internalChild has no keys (last key was merged with new child), so need to promote that merged child (its only child)
+            else {
+              tree.root := switch(internalChild.children[0]) {
+                case (?node) { node };
+                case _ { assert false; loop {} }
+              };
+            };
+            deletedValue
+          }
+        }
+      }
+
+    }
+  };
+
+  // This type is used to signal to the parent calling context what happened in the level below
+  type IntermediateInternalDeleteResult<K, V> = {
+    // element was deleted or not found, returning the old value (?value or null)
+    #delete: ?V;
+    // deleted an element, but was unable to successfully borrow and rebalance at the previous level without merging children
+    // the internalChild is the merged child that needs to be rebalanced at the next level up in the BTree
+    #mergeChild: {
+      internalChild: Internal<K, V>;
+      deletedValue: ?V
+    }
+  };
+
+  func internalDeleteHelper<K, V>(internalNode: Internal<K, V>, order: Nat, compare: (K, K) -> O.Order, deleteKey: K, skipNode: Bool): IntermediateInternalDeleteResult<K, V> {
+    let minKeys = NU.minKeysFromOrder(order);
+    let keyIndex = NU.getKeyIndex<K, V>(internalNode.data, compare, deleteKey);
+
+    // match on both the result of the node binary search, and if this node level should be skipped even if the key is found (internal kv replacement case)
+    switch(keyIndex, skipNode) {
+      // if key is found in the internal node
+      case (#keyFound(deleteIndex), false) {
+        let deletedValue = switch(internalNode.data.kvs[deleteIndex]) {
+          case (?kv) { ?kv.1 };
+          case null { assert false; null };
+        };
+        // TODO: (optimization) replace with deletion in one step without having to retrieve the maxKey first
+        let replaceKV = NU.getMaxKeyValue(internalNode.children[deleteIndex]);
+        internalNode.data.kvs[deleteIndex] := ?replaceKV;
+        switch(internalDeleteHelper(internalNode, order, compare, replaceKV.0, true)) {
+          case (#delete(_)) { #delete(deletedValue) };
+          case (#mergeChild({ internalChild; })) { #mergeChild({ internalChild; deletedValue }) }
+        };
+      };
+      // if key is not found in the internal node OR the key is found, but skipping this node (because deleting the in order precessor i.e. replacement kv)
+      // in both cases need to descend and traverse to find the kv to delete
+      case ((#keyFound(_), true) or (#notFound(_), _)) {
+        let childIndex = switch(keyIndex) {
+          case (#keyFound(replacedSkipKeyIndex)) { replacedSkipKeyIndex };
+          case (#notFound(childIndex)) { childIndex };
+        };
+        let child = switch(internalNode.children[childIndex]) {
+          case null { assert false; loop {} };
+          case (?c) { c }
+        };
+        switch(child) {
+          // if child is internal
+          case (#internal(internalChild)) { 
+            switch(internalDeleteHelper(internalChild, order, compare, deleteKey, false), childIndex == 0) {
+              // if value was successfully deleted and no additional tree re-balancing is needed, return the deleted value
+              case (#delete(v), _) { #delete(v) };
+              // if internalChild needs rebalancing and pulling child is left most
+              case (#mergeChild({ internalChild; deletedValue }), true) {
+                // try to pull left-most key and child from right sibling
+                switch(NU.borrowFromInternalSibling(internalNode.children, childIndex + 1, #successor)) {
+                  // if can pull up sibling kv and child
+                  case (#borrowed({ deletedSiblingKVPair; child; })) {
+                    NU.rotateBorrowedKVsAndChildFromSibling(
+                      internalNode,
+                      childIndex,
+                      deletedSiblingKVPair,
+                      child,
+                      internalChild,
+                      #right
+                    );
+                    #delete(deletedValue);
+                  };
+                  // unable to pull from sibling, need to merge with right sibling and push down parent
+                  case (#notEnoughKeys(sibling)) {
+                    // get the parent kv that will be pushed down the the child
+                    let kvPairToBePushedToChild = ?AU.deleteAndShiftValuesOver(internalNode.data.kvs, 0);
+                    internalNode.data.count -= 1;
+                    // merge the children and push down the parent
+                    let newChild = NU.mergeChildrenAndPushDownParent<K, V>(internalChild, kvPairToBePushedToChild, sibling);
+                    // update children of the parent
+                    internalNode.children[0] := ?#internal(newChild);
+                    ignore ?AU.deleteAndShiftValuesOver(internalNode.children, 1);
+                    
+                    if (internalNode.data.count < minKeys) {
+                      #mergeChild({ internalChild = internalNode; deletedValue; })
+                    } else {
+                      #delete(deletedValue)
+                    }
+                  };
+                }
+              };
+              // if internalChild needs rebalancing and pulling child is > 0, so a left sibling exists
+              case (#mergeChild({ internalChild; deletedValue }), false) {
+                // try to pull right-most key and its child directly from left sibling
+                switch(NU.borrowFromInternalSibling(internalNode.children, childIndex - 1: Nat, #predecessor)) {
+                  case (#borrowed({ deletedSiblingKVPair; child; })) {
+                    NU.rotateBorrowedKVsAndChildFromSibling(
+                      internalNode,
+                      childIndex - 1: Nat,
+                      deletedSiblingKVPair,
+                      child,
+                      internalChild,
+                      #left
+                    );
+                    #delete(deletedValue);
+                  };
+                  // unable to pull from left sibling
+                  case (#notEnoughKeys(leftSibling)) {
+                    // if child is not last index, try to pull from the right child
+                    if (childIndex < internalNode.data.count) {
+                      switch(NU.borrowFromInternalSibling(internalNode.children, childIndex, #successor)) {
+                        // if can pull up sibling kv and child
+                        case (#borrowed({ deletedSiblingKVPair; child; })) {
+                          NU.rotateBorrowedKVsAndChildFromSibling(
+                            internalNode,
+                            childIndex,
+                            deletedSiblingKVPair,
+                            child,
+                            internalChild,
+                            #right
+                          );
+                          return #delete(deletedValue);
+                        };
+                        // if cannot borrow, from left or right, merge (see below)
+                        case _ {};
+                      }
+                    };
+
+                    // get the parent kv that will be pushed down the the child
+                    let kvPairToBePushedToChild = ?AU.deleteAndShiftValuesOver(internalNode.data.kvs, childIndex - 1: Nat);
+                    internalNode.data.count -= 1;
+                    // merge it the children and push down the parent 
+                    let newChild = NU.mergeChildrenAndPushDownParent(leftSibling, kvPairToBePushedToChild, internalChild);
+
+                    // update children of the parent
+                    internalNode.children[childIndex - 1] := ?#internal(newChild);
+                    ignore ?AU.deleteAndShiftValuesOver(internalNode.children, childIndex);
+                    
+                    if (internalNode.data.count < minKeys) {
+                      #mergeChild({ internalChild = internalNode; deletedValue; })
+                    } else {
+                      #delete(deletedValue)
+                    };
+                  }
+                }
+              };
+            }
+          };
+          // if child is leaf
+          case (#leaf(leafChild)) { 
+            switch(leafDeleteHelper(leafChild, order, compare, deleteKey), childIndex == 0) {
+              case (#delete(value), _) { #delete(value)};
+              // if delete child is left most, try to borrow from right child
+              case (#mergeLeafData({ data; leafDeleteIndex }), true) { 
+                switch(NU.borrowFromRightLeafChild(internalNode.children, childIndex)) {
+                  case (?borrowedKVPair) {
+                    let kvPairToBePushedToChild = internalNode.data.kvs[childIndex];
+                    internalNode.data.kvs[childIndex] := ?borrowedKVPair;
+                    
+                    let deletedKV = AU.insertAtPostionAndDeleteAtPosition<(K, V)>(leafChild.data.kvs, kvPairToBePushedToChild, leafChild.data.count - 1, leafDeleteIndex);
+                    #delete(?deletedKV.1);
+                  };
+
+                  case null { 
+                    // can't borrow from right child, delete from leaf and merge with right child and parent kv, then push down into new leaf
+                    let rightChild = switch(internalNode.children[childIndex + 1]) {
+                      case (?#leaf(rc)) { rc};
+                      case _ { assert false; loop {} };
+                    };
+                    let (mergedLeaf, deletedKV) = mergeParentWithLeftRightChildLeafNodesAndDelete(
+                      internalNode.data.kvs[childIndex],
+                      leafChild,
+                      rightChild,
+                      leafDeleteIndex,
+                      #left
+                    );
+                    // delete the left most internal node kv, since was merging from a deletion in left most child (0) and the parent kv was pushed into the mergedLeaf
+                    ignore AU.deleteAndShiftValuesOver<(K, V)>(internalNode.data.kvs, 0);
+                    // update internal node children
+                    AU.replaceTwoWithElementAndShift<Node<K, V>>(internalNode.children, #leaf(mergedLeaf), 0);
+                    internalNode.data.count -= 1;
+
+                    if (internalNode.data.count < minKeys) {
+                      #mergeChild({ internalChild = internalNode; deletedValue = ?deletedKV.1 })
+                    } else {
+                      #delete(?deletedKV.1)
+                    }
+
+                  }
+                }
+              };
+              // if delete child is middle or right most, try to borrow from left child
+              case (#mergeLeafData({ data; leafDeleteIndex }), false) { 
+                // if delete child is right most, try to borrow from left child
+                switch(NU.borrowFromLeftLeafChild(internalNode.children, childIndex)) {
+                  case (?borrowedKVPair) {
+                    let kvPairToBePushedToChild = internalNode.data.kvs[childIndex - 1];
+                    internalNode.data.kvs[childIndex - 1] := ?borrowedKVPair;
+                    let kvDelete = AU.insertAtPostionAndDeleteAtPosition<(K, V)>(leafChild.data.kvs, kvPairToBePushedToChild, 0, leafDeleteIndex);
+                    #delete(?kvDelete.1);
+                  };
+                  case null {
+                    // if delete child is in the middle, try to borrow from right child
+                    if (childIndex < internalNode.data.count) {
+                      // try to borrow from right
+                      switch(NU.borrowFromRightLeafChild(internalNode.children, childIndex)) {
+                        case (?borrowedKVPair) {
+                          let kvPairToBePushedToChild = internalNode.data.kvs[childIndex];
+                          internalNode.data.kvs[childIndex] := ?borrowedKVPair;
+                          // insert the successor at the very last element
+                          let kvDelete = AU.insertAtPostionAndDeleteAtPosition<(K, V)>(leafChild.data.kvs, kvPairToBePushedToChild, leafChild.data.count-1, leafDeleteIndex);
+                          return #delete(?kvDelete.1);
+                        };
+                        // if cannot borrow, from left or right, merge (see below)
+                        case _ {}
+                      }
+                    };
+
+                    // can't borrow from left child, delete from leaf and merge with left child and parent kv, then push down into new leaf
+                    let leftChild = switch(internalNode.children[childIndex - 1]) {
+                      case (?#leaf(lc)) { lc};
+                      case _ { assert false; loop {} };
+                    };
+                    let (mergedLeaf, deletedKV) = mergeParentWithLeftRightChildLeafNodesAndDelete(
+                      internalNode.data.kvs[childIndex-1],
+                      leftChild,
+                      leafChild,
+                      leafDeleteIndex,
+                      #right
+                    );
+                    // delete the right most internal node kv, since was merging from a deletion in the right most child and the parent kv was pushed into the mergedLeaf
+                    ignore AU.deleteAndShiftValuesOver<(K, V)>(internalNode.data.kvs, childIndex - 1);
+                    // update internal node children
+                    AU.replaceTwoWithElementAndShift<Node<K, V>>(internalNode.children, #leaf(mergedLeaf), childIndex - 1);
+                    internalNode.data.count -= 1;
+
+                    if (internalNode.data.count < minKeys) {
+                      #mergeChild({ internalChild = internalNode; deletedValue = ?deletedKV.1 })
+                    } else {
+                      #delete(?deletedKV.1)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+
+  // This type is used to signal to the parent calling context what happened in the level below
+  type IntermediateLeafDeleteResult<K, V> = {
+    // element was deleted or not found, returning the old value (?value or null)
+    #delete: ?V;
+    // leaf had the minimum number of keys when deleting, so returns the leaf node's data and the index of the key that will be deleted
+    #mergeLeafData: {
+      data: Data<K, V>;
+      leafDeleteIndex: Nat;
+    }
+  };
+
+  func leafDeleteHelper<K, V>(leafNode: Leaf<K, V>, order: Nat, compare: (K, K) -> O.Order, deleteKey: K): IntermediateLeafDeleteResult<K, V> {
+    let minKeys = NU.minKeysFromOrder(order);
+
+    switch(NU.getKeyIndex<K, V>(leafNode.data, compare, deleteKey)) {
+      case (#keyFound(deleteIndex)) {
+        if (leafNode.data.count > minKeys) {
+          leafNode.data.count -= 1;
+          #delete(?AU.deleteAndShiftValuesOver<(K, V)>(leafNode.data.kvs, deleteIndex).1)
+        } else {
+          #mergeLeafData({
+            data = leafNode.data;
+            leafDeleteIndex = deleteIndex;
+          });
+        }
+      };
+      case (#notFound(_)) {
+        #delete(null)
+      }
+    }
+  };
+
+
   // get helper if internal node
   func getFromInternal<K, V>(internalNode: Internal<K, V>, compare: (K, K) -> O.Order, key: K): ?V { 
     switch(NU.getKeyIndex<K, V>(internalNode.data, compare, key)) {
@@ -116,6 +432,37 @@ module {
       case null { null };
       case (?ov) { ?ov.1 }
     }
+  };
+
+
+  // which child the deletionIndex is referring to
+  type DeletionSide = { #left; #right; }; 
+  
+  func mergeParentWithLeftRightChildLeafNodesAndDelete<K, V>(
+    parentKV: ?(K, V),
+    leftChild: Leaf<K, V>,
+    rightChild: Leaf<K, V>,
+    deleteIndex: Nat,
+    deletionSide: DeletionSide
+  ): (Leaf<K, V>, (K, V)) {
+    let count = leftChild.data.count * 2;
+    let (kvs, deletedKV) = AU.mergeParentWithChildrenAndDelete<(K, V)>(
+      parentKV,
+      leftChild.data.count,
+      leftChild.data.kvs,
+      rightChild.data.kvs,
+      deleteIndex,
+      deletionSide
+    );
+    (
+      {
+        data = {
+          kvs; 
+          var count = count
+        }
+      },
+      deletedKV
+    )
   };
 
 
@@ -168,7 +515,7 @@ module {
         } 
         // Otherwise, insert at the specified index (shifting elements over if necessary) 
         else {
-          NU.insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, (key, value), insertIndex);
+          NU.insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, ?(key, value), insertIndex);
           #insert(null);
         };
       }
@@ -235,7 +582,7 @@ module {
             }
             else {
               // insert the new kvs into the internal node
-              NU.insertAtIndexOfNonFullNodeData(internalNode.data, kv, insertIndex);
+              NU.insertAtIndexOfNonFullNodeData(internalNode.data, ?kv, insertIndex);
               // split and re-insert the single child that needs rebalancing
               NU.insertRebalancedChild(internalNode.children, insertIndex, leftChild, rightChild);
               #insert(null);

@@ -492,10 +492,330 @@ let insertTwoAtIndexAndSplitArraySuite = S.suite("insertTwoAtIndexAndSplitArray"
 ]);
 
 
+let deleteAndShiftValuesOverSuite = S.suite("deleteAndShiftValuesOverSuite", [
+  S.test("if the array has a single element, deletes it, making the empty array",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), null, null, null];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 0);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var null, null, null, null]
+    ))
+  ),
+  S.test("Returns the value corresponding to the key that was deleted",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), ?(40, 40)];
+      AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 2);
+    },
+    M.equals(T.tuple2(T.natTestable, T.natTestable, (30, 30)))
+  ),
+  S.test("with a full array if the delete index is at the end, removes it and makes the last value null",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), ?(40, 40)];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 3);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var ?(10, 10), ?(20, 20), ?(30, 30), null]
+    ))
+  ),
+  S.test("with a non-full array if the delete index is at the last non-null element, removes it and makes that value null",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), null];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 2);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var ?(10, 10), ?(20, 20), null, null]
+    ))
+  ),
+  S.test("with a full array if the deleted value is in the middle, removes it and moves all elements to the right over to the left 1",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), ?(40, 40)];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 1);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var ?(10, 10), ?(30, 30), ?(40, 40), null]
+    ))
+  ),
+  S.test("with a non-full array if the deleted value is in the middle, removes it and moves all elements to the right over to the left 1",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), null];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 1);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var ?(10, 10), ?(30, 30), null, null]
+    ))
+  ),
+  S.test("if the deleted value is at the beginning, removes it and moves all elements to the right over to the left 1",
+    do {
+      let array: [var ?(Nat, Nat)] = [var ?(10, 10), ?(20, 20), ?(30, 30), null];
+      ignore AU.deleteAndShiftValuesOver<(Nat, Nat)>(array, 0);
+      array;
+    },
+    M.equals(AUM.varArray<?(Nat, Nat)>(
+      T.optionalTestable<(Nat, Nat)>(
+        T.tuple2Testable<Nat, Nat>(T.natTestable, T.natTestable)
+      ),
+      [var ?(20, 20), ?(30, 30), null, null]
+    ))
+  ),
+]);
+
+let replaceTwoWithElementAndShiftSuite = S.suite("replaceTwoWithElementAndShiftSuite", [
+  S.test("if replacing a full array at the first element, shifts everything over",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      AU.replaceTwoWithElementAndShift(array, 15, 0);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?15, ?30, ?40, ?50, null]
+    ))
+  ),
+  S.test("if replacing a non-full array at the first element, shifts everything over until the first null is hit",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, null];
+      AU.replaceTwoWithElementAndShift(array, 15, 0);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?15, ?30, ?40, null, null]
+    ))
+  ),
+  S.test("if replacing full array at the middle element, shifts everything after the element over",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      AU.replaceTwoWithElementAndShift(array, 25, 1);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?10, ?25, ?40, ?50, null]
+    ))
+  ),
+  S.test("if replacing full array at the second to last element, just replaces it with the element",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      AU.replaceTwoWithElementAndShift(array, 45, 3);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?10, ?20, ?30, ?45, null]
+    ))
+  ),
+]);
+
+let insertAtPositionAndDeleteAtPositionSuite = S.suite("insertAtPostionAndDeleteAtPositionSuite", [
+  S.test("if inserting at first index and deleting at last index",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      ignore AU.insertAtPostionAndDeleteAtPosition(array, ?5, 0, 4);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?5, ?10, ?20, ?30, ?40]
+    ))
+  ),
+  S.test("if inserting at last index and deleting at first index",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      ignore AU.insertAtPostionAndDeleteAtPosition(array, ?60, 4, 0);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?20, ?30, ?40, ?50, ?60]
+    ))
+  ),
+  S.test("if insertion index < deletion index, returns correct value of deleted index",
+    AU.insertAtPostionAndDeleteAtPosition([var ?10, ?20, ?30, ?40, ?50], ?15, 1, 3),
+    M.equals(T.nat(40))
+  ),
+  S.test("if insertion index < deletion index",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      ignore AU.insertAtPostionAndDeleteAtPosition(array, ?15, 1, 3);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?10, ?15, ?20, ?30, ?50]
+    ))
+  ),
+  S.test("if insertion index > deletion index, returns correct value of deleted index",
+    AU.insertAtPostionAndDeleteAtPosition([var ?10, ?20, ?30, ?40, ?50], ?15, 3, 1),
+    M.equals(T.nat(20))
+  ),
+  S.test("if insertion index > deletion index",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      ignore AU.insertAtPostionAndDeleteAtPosition(array, ?45, 3, 1);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?10, ?30, ?40, ?45, ?50]
+    ))
+  ),
+  S.test("if insertion index == deletion index, returns correct value of deleted index",
+    AU.insertAtPostionAndDeleteAtPosition([var ?10, ?20, ?30, ?40, ?50], ?25, 2, 2),
+    M.equals(T.nat(30))
+  ),
+  S.test("if insertion index == deletion index",
+    do {
+      let array = [var ?10, ?20, ?30, ?40, ?50];
+      ignore AU.insertAtPostionAndDeleteAtPosition(array, ?25, 2, 2);
+      array
+    },
+    M.equals(AUM.varArray<?Nat>(
+      T.optionalTestable<Nat>(T.natTestable),
+      [var ?10, ?20, ?25, ?40, ?50]
+    ))
+  ),
+]);
+
+
+let mergeParentWithChildrenAndDeleteSuite = S.suite("mergeParentWithChildrenAndDeleteSuite", [
+  S.suite("if left deletion side", [
+    S.test("if deleteIndex is 0",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        0,
+        #left
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?5, ?8, ?10, ?15, ?20, ?30], 2)
+      ))
+    ),
+    S.test("if deleteIndex is in the middle",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        1,
+        #left
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?2, ?8, ?10, ?15, ?20, ?30], 5)
+      ))
+    ),
+    S.test("if deleteIndex is at the end",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        2,
+        #left
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?2, ?5, ?10, ?15, ?20, ?30], 8)
+      ))
+    )
+  ]),
+  S.suite("if right deletion side", [
+    S.test("if deleteIndex is 0",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        0,
+        #right
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?2, ?5, ?8, ?10, ?20, ?30], 15)
+      ))
+    ),
+    S.test("if deleteIndex is in the middle",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        1,
+        #right
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?2, ?5, ?8, ?10, ?15, ?30], 20)
+      ))
+    ),
+    S.test("if deleteIndex is at the end",
+      AU.mergeParentWithChildrenAndDelete<Nat>(
+        ?10,
+        3,
+        [var ?2, ?5, ?8, null, null, null],
+        [var ?15, ?20, ?30, null, null, null],
+        2,
+        #right
+      ),
+      M.equals(T.tuple2<[var ?Nat], Nat>(
+        AUM.varArrayTestable<?Nat>(
+          T.optionalTestable<Nat>(T.natTestable)
+        ),
+        T.natTestable,
+        ([var ?2, ?5, ?8, ?10, ?15, ?20], 30)
+      ))
+    )
+  ])
+]);
+
+
 S.run(S.suite("ArrayUtil",
   [
     insertAtPositionSuite,
     insertOneAtIndexAndSplitArraySuite,
-    insertTwoAtIndexAndSplitArraySuite
-  ]
+    insertTwoAtIndexAndSplitArraySuite,
+    deleteAndShiftValuesOverSuite,
+    replaceTwoWithElementAndShiftSuite,
+    insertAtPositionAndDeleteAtPositionSuite,
+    mergeParentWithChildrenAndDeleteSuite,
+  ] 
 ));
