@@ -1,5 +1,6 @@
 /// The BTree module collection of functions and types
 
+import Types "./Types";
 import BS "./BinarySearch";
 import AU "./ArrayUtil";
 
@@ -13,30 +14,11 @@ import Option "mo:base/Option";
 
 
 module {
-  public type Node<K, V> = {
-    #leaf: Leaf<K, V>;
-    #internal: Internal<K, V>;
-  };
-
-  public type Data<K, V> = {
-    kvs: [var ?(K, V)];
-    var count: Nat;
-  };
-
-  public type Internal<K, V> = {
-    data: Data<K, V>;
-    children: [var ?Node<K, V>]
-  };
-
-  public type Leaf<K, V> = {
-    data: Data<K, V>;
-  };
-
-  public type BTree<K, V> = {
-    var root: Node<K, V>;
-    order: Nat;
-  };
-
+  public type BTree<K, V> = Types.BTree<K, V>;
+  public type Node<K, V> = Types.Node<K, V>;
+  public type Internal<K, V> = Types.Internal<K, V>;
+  public type Leaf<K, V> = Types.Leaf<K, V>;
+  public type Data<K, V> = Types.Data<K, V>;
 
   // TODO - enforce BTrees to have order of at least 4
   public func init<K, V>(order: Nat): BTree<K, V> = {
@@ -97,38 +79,6 @@ module {
         null
       }
     };
-  };
-
-
-  // get helper if internal node
-  func getFromInternal<K, V>(internalNode: Internal<K, V>, compare: (K, K) -> O.Order, key: K): ?V { 
-    switch(getKeyIndex<K, V>(internalNode.data, compare, key)) {
-      case (#keyFound(index)) { getExistingValueFromIndex(internalNode.data, index) };
-      case (#notFound(index)) {
-        switch(internalNode.children[index]) {
-          // expects the child to be there, otherwise there's a bug in binary search or the tree is invalid
-          case null { assert false; null };
-          case (?#leaf(leafNode)) { getFromLeaf(leafNode, compare, key)};
-          case (?#internal(internalNode)) { getFromInternal(internalNode, compare, key)}
-        }
-      }
-    }
-  };
-
-  // get function helper if leaf node
-  func getFromLeaf<K, V>(leafNode: Leaf<K, V>, compare: (K, K) -> O.Order, key: K): ?V { 
-    switch(getKeyIndex<K, V>(leafNode.data, compare, key)) {
-      case (#keyFound(index)) { getExistingValueFromIndex(leafNode.data, index) };
-      case _ null;
-    }
-  };
-
-  // get function helper that retrieves an existing value in the case that the key is found
-  func getExistingValueFromIndex<K, V>(data: Data<K, V>, index: Nat): ?V {
-    switch(data.kvs[index]) {
-      case null { null };
-      case (?ov) { ?ov.1 }
-    }
   };
 
 

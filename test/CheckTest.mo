@@ -6,6 +6,7 @@ import Nat "mo:base/Nat";
 
 import Check "../src/Check";
 import BT "../src/BTree";
+import Types "../src/Types";
 
 let orderResultTestableItem = func(result: Check.CheckOrderResult): T.TestableItem<Check.CheckOrderResult> = {
   display = func(r: Check.CheckOrderResult): Text = switch(r) { 
@@ -97,7 +98,7 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
   ]),
   S.test("uneven & invalid BTree depth",
     do {
-      let t: BT.BTree<Nat, Nat> = {
+      let t: Types.BTree<Nat, Nat> = {
         var root = #internal({
           data = {
             kvs = [var ?(6, 6), ?(15, 15), null];
@@ -207,7 +208,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
   S.suite("are not valid btrees", [
     S.test("if have invalid nested leaf data order",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var ?(6, 6), null, null];
@@ -238,7 +239,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
     ),
     S.test("if have invalid internal node data order",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var ?(6, 6), ?(0, 0), null];
@@ -269,7 +270,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
     ),
     S.test("if have a null before a non-null key-value pair in a leaf",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var ?(6, 6), null, null];
@@ -300,7 +301,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
     ),
     S.test("if have a null before a non-null key-value pair in an internal",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var null, ?(6, 6), null];
@@ -331,7 +332,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
     ),
     S.test("if invalid number of children",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var ?(6, 6), ?(0, 0), null];
@@ -363,7 +364,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
     ),
     S.test("if invalid number of keys",
       do {
-        let t: BT.BTree<Nat, Nat> = {
+        let t: Types.BTree<Nat, Nat> = {
           var root = #internal({
             data = {
               kvs = [var ?(6, 6), ?(0, 0), null];

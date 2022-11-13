@@ -5,12 +5,12 @@ import O "mo:base/Order";
 import Option "mo:base/Option";
 import Result "mo:base/Result";
 
-import BT "./BTree";
+import Types "./Types";
 
 
 module {
   /// Checks a BTree for validity, checking for both key ordering and node height/depth equivalence
-  public func check<K, V>(t: BT.BTree<K, V>, compare: (K, K) -> O.Order): Bool {
+  public func check<K, V>(t: Types.BTree<K, V>, compare: (K, K) -> O.Order): Bool {
     switch(checkTreeDepthIsValid(t)) {
       case (#err) { return false };
       case _ {}
@@ -28,11 +28,11 @@ module {
   };
 
   // Ensures that the Btree is balanced and all sibling/cousin nodes (at same level) have the same height
-  public func checkTreeDepthIsValid<K, V>(t: BT.BTree<K, V>): CheckDepthResult {
+  public func checkTreeDepthIsValid<K, V>(t: Types.BTree<K, V>): CheckDepthResult {
     depthCheckerHelper(t.root)
   };
 
-  func depthCheckerHelper<K, V>(node: BT.Node<K, V>): CheckDepthResult {
+  func depthCheckerHelper<K, V>(node: Types.Node<K, V>): CheckDepthResult {
     switch(node) {
       case (#leaf(_)) { #ok(1) };
       case (#internal(internalNode)) {
@@ -75,7 +75,7 @@ module {
   };
 
   /// Ensures the ordering of all elements in the BTree is valid
-  public func checkDataOrderIsValid<K, V>(t : BT.BTree<K, V>, compare: (K, K) -> O.Order): CheckOrderResult {
+  public func checkDataOrderIsValid<K, V>(t : Types.BTree<K, V>, compare: (K, K) -> O.Order): CheckOrderResult {
     // allow for empty root (valid)
     switch(t.root) {
       case (#leaf(leafNode)) {
@@ -89,14 +89,14 @@ module {
     rec(t.root, t.order, infCompare(compare), #infmin, #infmax)
   };
 
-  func rec<K, V>(node : BT.Node<K, V>, order: Nat, compare : InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
+  func rec<K, V>(node : Types.Node<K, V>, order: Nat, compare : InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
     switch (node) {
       case (#leaf(leafNode)) { checkData(leafNode.data, order, compare, lower, upper) };
       case (#internal(internalNode)) { checkInternal(internalNode, order, compare, lower, upper) };
     }
   };
 
-  func checkData<K, V>(data : BT.Data<K, V>, order: Nat, compare : InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
+  func checkData<K, V>(data : Types.Data<K, V>, order: Nat, compare : InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
     let expectedMaxKeys: Nat = order - 1;
     if (data.kvs.size() != expectedMaxKeys) { return #err };
 
@@ -126,7 +126,7 @@ module {
     #ok
   };
 
-  func checkInternal<K, V>(internal : BT.Internal<K, V>, order: Nat, compare: InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
+  func checkInternal<K, V>(internal : Types.Internal<K, V>, order: Nat, compare: InfCompare<K>, lower : Inf<K>, upper : Inf<K>): CheckOrderResult {
     if (
       internal.children.size() != order
       or
