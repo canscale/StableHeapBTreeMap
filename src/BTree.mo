@@ -62,55 +62,32 @@ module {
 
   /// Inserts an element into a BTree
   public func insert<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, value: V): ?V {
-    switch(tree.root) {
-      case (#leaf(leafNode)) {
-        switch(leafInsertHelper<K, V>(leafNode, tree.order, compare, key, value)) {
-          case (#insert(ov)) { ov };
-          case (#promote({ kv; leftChild; rightChild; })) {
-            tree.root := #internal({
-              data = {
-                kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
-                  if (i == 0) { ?kv }
-                  else { null }
-                });
-                var count = 1;
-              };
-              children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
-                if (i == 0) { ?leftChild }
-                else if (i == 1) { ?rightChild }
-                else { null }
-              });
-            });
+    let insertResult = switch(tree.root) {
+      case (#leaf(leafNode)) { leafInsertHelper<K, V>(leafNode, tree.order, compare, key, value) };
+      case (#internal(internalNode)) { internalInsertHelper<K, V>(internalNode, tree.order, compare, key, value) };
+    };
 
-            null
-          }
-        };
-      };
-      case (#internal(internalNode)) {
-        switch(internalInsertHelper<K, V>(internalNode, tree.order, compare, key, value)) {
-          case (#insert(ov)) { ov };
-          case (#promote({ kv; leftChild; rightChild; })) {
-            tree.root := #internal({
-              data = {
-                kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
-                  if (i == 0) { ?kv }
-                  else { null }
-                }); 
-                var count = 1;
-              };
-              children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
-                if (i == 0) { ?leftChild }
-                else if (i == 1) { ?rightChild }
-                else { null }
-              });
+    switch(insertResult) {
+      case (#insert(ov)) { ov };
+      case (#promote({ kv; leftChild; rightChild; })) {
+        tree.root := #internal({
+          data = {
+            kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
+              if (i == 0) { ?kv }
+              else { null }
             });
+            var count = 1;
+          };
+          children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
+            if (i == 0) { ?leftChild }
+            else if (i == 1) { ?rightChild }
+            else { null }
+          });
+        });
 
-            null
-            
-          }
-        };
+        null
       }
-    }
+    };
   };
 
 
