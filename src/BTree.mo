@@ -1,5 +1,6 @@
 /// The BTree module collection of functions and types
 
+import Types "./Types";
 import BS "./BinarySearch";
 import AU "./ArrayUtil";
 
@@ -13,30 +14,11 @@ import Option "mo:base/Option";
 
 
 module {
-  public type Node<K, V> = {
-    #leaf: Leaf<K, V>;
-    #internal: Internal<K, V>;
-  };
-
-  public type Data<K, V> = {
-    kvs: [var ?(K, V)];
-    var count: Nat;
-  };
-
-  public type Internal<K, V> = {
-    data: Data<K, V>;
-    children: [var ?Node<K, V>]
-  };
-
-  public type Leaf<K, V> = {
-    data: Data<K, V>;
-  };
-
-  public type BTree<K, V> = {
-    var root: Node<K, V>;
-    order: Nat;
-  };
-
+  public type BTree<K, V> = Types.BTree<K, V>;
+  public type Node<K, V> = Types.Node<K, V>;
+  public type Internal<K, V> = Types.Internal<K, V>;
+  public type Leaf<K, V> = Types.Leaf<K, V>;
+  public type Data<K, V> = Types.Data<K, V>;
 
   // TODO - enforce BTrees to have order of at least 4
   public func init<K, V>(order: Nat): BTree<K, V> = {
