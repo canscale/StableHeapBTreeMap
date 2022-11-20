@@ -1,3 +1,5 @@
+/// A module containing a BTree specific binary search helper function
+
 import O "mo:base/Order";
 
 

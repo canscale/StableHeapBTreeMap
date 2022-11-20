@@ -1,12 +1,18 @@
+/// The BTree module collection of functions and types
+
+import BS "./BinarySearch";
+import AU "./ArrayUtil";
+
+import Int "mo:base/Int";
+import O "mo:base/Order";
 
 import Array "mo:base/Array";
-import Debug "mo:base/Debug";
-import O "mo:base/Order";
 import Nat "mo:base/Nat";
+
+import Option "mo:base/Option";
 
 
 module {
-  
   public type Node<K, V> = {
     #leaf: Leaf<K, V>;
     #internal: Internal<K, V>;
@@ -31,6 +37,7 @@ module {
     order: Nat;
   };
 
+
   // TODO - enforce BTrees to have order of at least 4
   public func init<K, V>(order: Nat): BTree<K, V> = {
     var root = #leaf({
@@ -41,6 +48,232 @@ module {
     }); 
     order;
   };
+
+  
+  /// Allows one to quickly create a BTree using an array of key value pairs
+  public func createBTreeWithKVPairs<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
+    let t = init<K, V>(order);
+    let _ = Array.map<(K, V), ?V>(kvPairs, func(pair) {
+      insert<K, V>(t, compare, pair.0, pair.1)
+    });
+    t;
+  };
+
+
+  /// Inserts an element into a BTree
+  public func insert<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, value: V): ?V {
+    let insertResult = switch(tree.root) {
+      case (#leaf(leafNode)) { leafInsertHelper<K, V>(leafNode, tree.order, compare, key, value) };
+      case (#internal(internalNode)) { internalInsertHelper<K, V>(internalNode, tree.order, compare, key, value) };
+    };
+
+    switch(insertResult) {
+      case (#insert(ov)) { ov };
+      case (#promote({ kv; leftChild; rightChild; })) {
+        tree.root := #internal({
+          data = {
+            kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
+              if (i == 0) { ?kv }
+              else { null }
+            });
+            var count = 1;
+          };
+          children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
+            if (i == 0) { ?leftChild }
+            else if (i == 1) { ?rightChild }
+            else { null }
+          });
+        });
+
+        null
+      }
+    };
+  };
+
+
+  // This type is used to signal to the parent calling context what happened in the level below
+  type IntermediateInsertResult<K, V> = {
+    // element was inserted or replaced, returning the old value (?value or null)
+    #insert: ?V;
+    // child was full when inserting, so returns the promoted kv pair and the split left and right child 
+    #promote: {
+      kv: (K, V);
+      leftChild: Node<K, V>;
+      rightChild: Node<K, V>;
+    };
+  };
+
+
+  // Helper for inserting into a leaf node
+  func leafInsertHelper<K, V>(leafNode: Leaf<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, value: V): (IntermediateInsertResult<K, V>) {
+    // Perform binary search to see if the element exists in the node
+    switch(getKeyIndex<K, V>(leafNode.data, compare, key)) {
+      case (#keyFound(insertIndex)) {
+        let previous = leafNode.data.kvs[insertIndex];
+        leafNode.data.kvs[insertIndex] := ?(key, value);
+        switch(previous) {
+          case (?ov) { #insert(?ov.1) };
+          case null { assert false; #insert(null) }; // the binary search already found an element, so this case should never happen
+        }
+      };
+      case (#notFound(insertIndex)) {
+        // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
+        let maxKeys: Nat = order - 1;
+        // If the leaf is full, insert, split the node, and promote the middle element
+        if (leafNode.data.count >= maxKeys) {
+          let (leftKVs, promotedParentElement, rightKVs) = AU.insertOneAtIndexAndSplitArray(
+            leafNode.data.kvs,
+            (key, value),
+            insertIndex
+          );
+
+          let leftCount = order / 2;
+          let rightCount: Nat = if (order % 2 == 0) { leftCount - 1 } else { leftCount };
+
+          (
+            #promote({
+              kv = promotedParentElement;
+              leftChild = createLeaf<K, V>(leftKVs, leftCount);
+              rightChild = createLeaf<K, V>(rightKVs, rightCount);
+            })
+          )
+        } 
+        // Otherwise, insert at the specified index (shifting elements over if necessary) 
+        else {
+          insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, (key, value), insertIndex);
+          #insert(null);
+        };
+      }
+    }
+  };
+
+
+  // Helper for inserting into an internal node
+  func internalInsertHelper<K, V>(internalNode: Internal<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, value: V): IntermediateInsertResult<K, V> {
+    switch(getKeyIndex<K, V>(internalNode.data, compare, key)) {
+      case (#keyFound(insertIndex)) {
+        let previous = internalNode.data.kvs[insertIndex];
+        internalNode.data.kvs[insertIndex] := ?(key, value);
+        switch(previous) {
+          case (?ov) { #insert(?ov.1) };
+          case null { assert false; #insert(null) }; // the binary search already found an element, so this case should never happen
+        }
+      };
+      case (#notFound(insertIndex)) {
+        let insertResult = switch(internalNode.children[insertIndex]) {
+          case null { assert false; #insert(null) };
+          case (?#leaf(leafNode)) { leafInsertHelper(leafNode, order, compare, key, value) };
+          case (?#internal(internalChildNode)) { internalInsertHelper(internalChildNode, order, compare, key, value) };
+        };
+
+        switch(insertResult) {
+          case (#insert(ov)) { #insert(ov) };
+          case (#promote({ kv; leftChild; rightChild; })) {
+            // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
+            let maxKeys: Nat = order - 1;
+            // if current internal node is full, need to split the internal node
+            if (internalNode.data.count >= maxKeys) {
+              // insert and split internal kvs, determine new promotion target kv
+              let (leftKVs, promotedParentElement, rightKVs) = AU.insertOneAtIndexAndSplitArray(
+                internalNode.data.kvs,
+                (kv),
+                insertIndex
+              );
+
+              // calculate the element count in the left KVs and the element count in the right KVs
+              let leftCount = order / 2;
+              let rightCount: Nat = if (order % 2 == 0) { leftCount - 1 } else { leftCount };
+
+              // split internal children
+              let (leftChildren, rightChildren) = splitChildrenInTwoWithRebalances<K, V>(
+                internalNode.children,
+                insertIndex,
+                leftChild,
+                rightChild
+              );
+
+              // send the kv to be promoted, as well as the internal children left and right split 
+              #promote({
+                kv = promotedParentElement;
+                leftChild = #internal({
+                  data = { kvs = leftKVs; var count = leftCount; };
+                  children = leftChildren;
+                });
+                rightChild = #internal({
+                  data = { kvs = rightKVs; var count = rightCount; };
+                  children = rightChildren;
+                })
+              });
+            }
+            else {
+              // insert the new kvs into the internal node
+              insertAtIndexOfNonFullNodeData(internalNode.data, kv, insertIndex);
+              // split and re-insert the single child that needs rebalancing
+              insertRebalancedChild(internalNode.children, insertIndex, leftChild, rightChild);
+              #insert(null);
+            }
+          }
+        };
+      }
+    };
+  };
+
+
+  func createLeaf<K, V>(kvs: [var ?(K, V)], count: Nat): Node<K, V> {
+    #leaf({
+      data = {
+        kvs;
+        var count;
+      }
+    })
+  };
+
+  
+  /// Inserts element at the given index into a non-full leaf node
+  func insertAtIndexOfNonFullNodeData<K, V>(data: Data<K, V>, kvPair: (K, V), insertIndex: Nat): () {
+    let currentLastElementIndex = if (data.count == 0) { 0 } else { Int.abs(data.count - 1) };
+    AU.insertAtPosition<(K, V)>(data.kvs, ?kvPair, insertIndex, currentLastElementIndex);
+
+    // increment the count of data in this node since just inserted an element
+    data.count += 1;
+  };
+
+
+  func getKeyIndex<K, V>(data: Data<K, V>, compare: (K, K) -> O.Order, key: K): BS.SearchResult {
+    BS.binarySearchNode<K, V>(data.kvs, compare, key, data.count);
+  };
+
+
+  // Inserts two rebalanced (split) child halves into a non-full array of children. 
+  func insertRebalancedChild<K, V>(children: [var ?Node<K, V>], rebalancedChildIndex: Nat, leftChildInsert: Node<K, V>, rightChildInsert: Node<K, V>): () {
+    // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
+    var j: Nat = children.size() - 2;
+
+    // This is just a sanity check to ensure the children aren't already full (should split promote otherwise)
+    // TODO: Remove this check once confident
+    if (Option.isSome(children[j+1])) { assert false }; 
+
+    // Iterate backwards over the array and shift each element over to the right by one until the rebalancedChildIndex is hit
+    while (j > rebalancedChildIndex) {
+      children[j + 1] := children[j];
+      j -= 1;
+    };
+
+    // Insert both the left and right rebalanced children (replacing the pre-split child)
+    children[j] := ?leftChildInsert;
+    children[j+1] := ?rightChildInsert;
+  };
+
+
+  // Used when splitting the children of an internal node
+  //
+  // Takes in the rebalanced child index, as well as both halves of the rebalanced child and splits the children, inserting the left and right child halves appropriately
+  //
+  // For more context, see the documentation for the splitArrayAndInsertTwo method in ArrayUtils.mo
+  func splitChildrenInTwoWithRebalances<K, V>(children: [var ?Node<K, V>], rebalancedChildIndex: Nat, leftChildInsert: Node<K, V>, rightChildInsert: Node<K, V>): ([var ?Node<K, V>], [var ?Node<K, V>]) {
+    AU.splitArrayAndInsertTwo<Node<K, V>>(children, rebalancedChildIndex, leftChildInsert, rightChildInsert);
+  };
+
 
   /// Opinionated version of generating a textual representation of a BTree. Primarily to be used
   /// for testing and debugging
