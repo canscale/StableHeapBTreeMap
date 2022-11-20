@@ -49,6 +49,45 @@ let initSuite = S.suite("init", [
   )
 ]);
 
+let getSuite = S.suite("get", [
+  S.test("returns null on an empty BTree",
+    BT.get<Nat, Nat>(BT.init<Nat, Nat>(4), Nat.compare, 5),
+    M.equals(T.optional<Nat>(T.natTestable, null))
+  ),
+  S.test("returns null on a BTree leaf node that does not contain the key",
+    BT.get<Nat, Nat>(quickCreateBTreeWithKVPairs(4, [3, 7]), Nat.compare, 5),
+    M.equals(T.optional<Nat>(T.natTestable, null))
+  ),
+  S.test("returns null on a multi-level BTree that does not contain the key",
+    BT.get<Nat, Nat>(
+      quickCreateBTreeWithKVPairs(4, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]),
+      Nat.compare,
+      21
+    ),
+    M.equals(T.optional<Nat>(T.natTestable, null))
+  ),
+  S.test("returns null on a multi-level BTree that does not contain the key, if the key is greater than all elements in the tree",
+    BT.get<Nat, Nat>(
+      quickCreateBTreeWithKVPairs(4, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]),
+      Nat.compare,
+      200
+    ),
+    M.equals(T.optional<Nat>(T.natTestable, null))
+  ),
+  S.test("returns the value if a BTree leaf node contains the key",
+    BT.get<Nat, Nat>(quickCreateBTreeWithKVPairs(4, [3, 7, 10]), Nat.compare, 10),
+    M.equals(T.optional<Nat>(T.natTestable, ?10))
+  ),
+  S.test("returns the value if a BTree internal node contains the key",
+    BT.get<Nat, Nat>(
+      quickCreateBTreeWithKVPairs(4, [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]),
+      Nat.compare,
+      120
+    ),
+    M.equals(T.optional<Nat>(T.natTestable, ?120))
+  ),
+]);
+
 
 let insertSuite = S.suite("insert", [
   S.suite("root as leaf tests", [
@@ -761,6 +800,7 @@ let insertSuite = S.suite("insert", [
 S.run(S.suite("BTree",
   [
     initSuite,
+    getSuite,
     insertSuite
   ]
 ));
