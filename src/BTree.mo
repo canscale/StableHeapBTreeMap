@@ -21,20 +21,27 @@ module {
   public type Data<K, V> = Types.Data<K, V>;
 
   // TODO - enforce BTrees to have order of at least 4
-  public func init<K, V>(order: Nat): BTree<K, V> = {
-    var root = #leaf({
-      data = {
-        kvs = Array.tabulateVar<?(K, V)>(order - 1, func(i) { null });
-        var count = 0;
-      };
-    }); 
-    order;
+  public func init<K, V>(order: ?Nat): BTree<K, V> {
+    let btreeOrder = switch(order) {
+      case null { 8 };
+      case (?providedOrder) { providedOrder };
+    };
+
+    {
+      var root = #leaf({
+        data = {
+          kvs = Array.tabulateVar<?(K, V)>(btreeOrder - 1, func(i) { null });
+          var count = 0;
+        };
+      }); 
+      order = btreeOrder;
+    }
   };
 
   
   /// Allows one to quickly create a BTree using an array of key value pairs
   public func createBTreeWithKVPairs<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
-    let t = init<K, V>(order);
+    let t = init<K, V>(?order);
     let _ = Array.map<(K, V), ?V>(kvPairs, func(pair) {
       insert<K, V>(t, compare, pair.0, pair.1)
     });

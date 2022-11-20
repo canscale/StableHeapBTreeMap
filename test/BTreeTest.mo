@@ -36,7 +36,7 @@ func testableBTree<K, V>(
 
 let initSuite = S.suite("init", [
   S.test("initializes an empty BTree with order 4 to have the correct number of keys (order - 1)",
-    BT.init<Nat, Nat>(4),
+    BT.init<Nat, Nat>(?4),
     M.equals(testableNatBTree({
       var root = #leaf({
         data = {
@@ -46,12 +46,24 @@ let initSuite = S.suite("init", [
       });
       order = 4;
     }))
+  ),
+  S.test("if null order is provided, initializes an empty BTree with order 8 to have the correct number of keys (order - 1)",
+    BT.init<Nat, Nat>(null),
+    M.equals(testableNatBTree({
+      var root = #leaf({
+        data = {
+          kvs = [var null, null, null, null, null, null, null];
+          var count = 0;
+        }
+      });
+      order = 8;
+    }))
   )
 ]);
 
 let getSuite = S.suite("get", [
   S.test("returns null on an empty BTree",
-    BT.get<Nat, Nat>(BT.init<Nat, Nat>(4), Nat.compare, 5),
+    BT.get<Nat, Nat>(BT.init<Nat, Nat>(?4), Nat.compare, 5),
     M.equals(T.optional<Nat>(T.natTestable, null))
   ),
   S.test("returns null on a BTree leaf node that does not contain the key",
@@ -93,7 +105,7 @@ let insertSuite = S.suite("insert", [
   S.suite("root as leaf tests", [
     S.test("inserts into an empty BTree",
       do {
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         let _ = BT.insert<Nat, Nat>(t, Nat.compare, 4, 4);
         t;
       },
@@ -109,7 +121,7 @@ let insertSuite = S.suite("insert", [
     ),
     S.test("inserting an element into a BTree that does not exist returns null",
       do {
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         BT.insert<Nat, Nat>(t, Nat.compare, 4, 4);
       },
       M.equals(T.optional<Nat>(T.natTestable, null))

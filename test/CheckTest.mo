@@ -38,13 +38,13 @@ let depthResultTestableItem = func(result: Check.CheckDepthResult): T.TestableIt
 let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
   S.suite("order 4 BTree", [
     S.test("test empty BTree has height 1",
-      Check.checkTreeDepthIsValid<Nat, Nat>(BT.init<Nat, Nat>(4)),
+      Check.checkTreeDepthIsValid<Nat, Nat>(BT.init<Nat, Nat>(?4)),
       M.equals(depthResultTestableItem(#ok(1)))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -56,7 +56,7 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
     S.test("test 10000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         while (i < 20000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -68,13 +68,13 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
   ]),
   S.suite("order 128 BTree", [
     S.test("test empty BTree has height 1",
-      Check.checkTreeDepthIsValid<Nat, Nat>(BT.init<Nat, Nat>(128)),
+      Check.checkTreeDepthIsValid<Nat, Nat>(BT.init<Nat, Nat>(?128)),
       M.equals(depthResultTestableItem(#ok(1)))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(128);
+        let t = BT.init<Nat, Nat>(?128);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -86,7 +86,7 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
     S.test("test 20000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(128);
+        let t = BT.init<Nat, Nat>(?128);
         while (i < 20000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -153,13 +153,13 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
 let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
   S.suite("order 4 BTree", [
     S.test("test empty BTree",
-      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(4), Nat.compare),
+      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(?4), Nat.compare),
       M.equals(orderResultTestableItem(#ok))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -171,13 +171,13 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
   ]),
   S.suite("order 16 BTrees", [
     S.test("test empty BTree",
-      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(16), Nat.compare),
+      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(?16), Nat.compare),
       M.equals(orderResultTestableItem(#ok))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(16);
+        let t = BT.init<Nat, Nat>(?16);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -189,13 +189,13 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
   ]),
   S.suite("order 99 BTrees", [
     S.test("test empty BTree",
-      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(99), Nat.compare),
+      Check.checkDataOrderIsValid<Nat, Nat>(BT.init<Nat, Nat>(?99), Nat.compare),
       M.equals(orderResultTestableItem(#ok))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(99);
+        let t = BT.init<Nat, Nat>(?99);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -399,13 +399,13 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
 let checkSuite = S.suite("checkSuite", [
   S.suite("order 4 BTree", [
     S.test("test empty BTree",
-      Check.check<Nat, Nat>(BT.init<Nat, Nat>(4), Nat.compare),
+      Check.check<Nat, Nat>(BT.init<Nat, Nat>(?4), Nat.compare),
       M.equals(T.bool(true))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(4);
+        let t = BT.init<Nat, Nat>(?4);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
@@ -417,13 +417,13 @@ let checkSuite = S.suite("checkSuite", [
   ]),
   S.suite("order 128 BTree", [
     S.test("test empty BTree",
-      Check.check<Nat, Nat>(BT.init<Nat, Nat>(128), Nat.compare),
+      Check.check<Nat, Nat>(BT.init<Nat, Nat>(?128), Nat.compare),
       M.equals(T.bool(true))
     ),
     S.test("test 5000 auto incrementing inserts into the BTree",
       do {
         var i = 0;
-        let t = BT.init<Nat, Nat>(128);
+        let t = BT.init<Nat, Nat>(?128);
         while (i < 5000) {
           ignore BT.insert<Nat, Nat>(t, Nat.compare, i, i);
           i += 1
