@@ -1,16 +1,14 @@
 /// The BTree module collection of functions and types
 
 import Types "./Types";
-import BS "./BinarySearch";
 import AU "./ArrayUtil";
+import NU "./NodeUtil";
 
 import Int "mo:base/Int";
 import O "mo:base/Order";
 
 import Array "mo:base/Array";
 import Nat "mo:base/Nat";
-
-import Option "mo:base/Option";
 
 
 module {
@@ -91,7 +89,7 @@ module {
 
   // get helper if internal node
   func getFromInternal<K, V>(internalNode: Internal<K, V>, compare: (K, K) -> O.Order, key: K): ?V { 
-    switch(getKeyIndex<K, V>(internalNode.data, compare, key)) {
+    switch(NU.getKeyIndex<K, V>(internalNode.data, compare, key)) {
       case (#keyFound(index)) { getExistingValueFromIndex(internalNode.data, index) };
       case (#notFound(index)) {
         switch(internalNode.children[index]) {
@@ -106,7 +104,7 @@ module {
 
   // get function helper if leaf node
   func getFromLeaf<K, V>(leafNode: Leaf<K, V>, compare: (K, K) -> O.Order, key: K): ?V { 
-    switch(getKeyIndex<K, V>(leafNode.data, compare, key)) {
+    switch(NU.getKeyIndex<K, V>(leafNode.data, compare, key)) {
       case (#keyFound(index)) { getExistingValueFromIndex(leafNode.data, index) };
       case _ null;
     }
@@ -137,7 +135,7 @@ module {
   // Helper for inserting into a leaf node
   func leafInsertHelper<K, V>(leafNode: Leaf<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, value: V): (IntermediateInsertResult<K, V>) {
     // Perform binary search to see if the element exists in the node
-    switch(getKeyIndex<K, V>(leafNode.data, compare, key)) {
+    switch(NU.getKeyIndex<K, V>(leafNode.data, compare, key)) {
       case (#keyFound(insertIndex)) {
         let previous = leafNode.data.kvs[insertIndex];
         leafNode.data.kvs[insertIndex] := ?(key, value);
@@ -170,7 +168,7 @@ module {
         } 
         // Otherwise, insert at the specified index (shifting elements over if necessary) 
         else {
-          insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, (key, value), insertIndex);
+          NU.insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, (key, value), insertIndex);
           #insert(null);
         };
       }
@@ -180,7 +178,7 @@ module {
 
   // Helper for inserting into an internal node
   func internalInsertHelper<K, V>(internalNode: Internal<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, value: V): IntermediateInsertResult<K, V> {
-    switch(getKeyIndex<K, V>(internalNode.data, compare, key)) {
+    switch(NU.getKeyIndex<K, V>(internalNode.data, compare, key)) {
       case (#keyFound(insertIndex)) {
         let previous = internalNode.data.kvs[insertIndex];
         internalNode.data.kvs[insertIndex] := ?(key, value);
@@ -215,7 +213,7 @@ module {
               let rightCount: Nat = if (order % 2 == 0) { leftCount - 1 } else { leftCount };
 
               // split internal children
-              let (leftChildren, rightChildren) = splitChildrenInTwoWithRebalances<K, V>(
+              let (leftChildren, rightChildren) = NU.splitChildrenInTwoWithRebalances<K, V>(
                 internalNode.children,
                 insertIndex,
                 leftChild,
@@ -237,9 +235,9 @@ module {
             }
             else {
               // insert the new kvs into the internal node
-              insertAtIndexOfNonFullNodeData(internalNode.data, kv, insertIndex);
+              NU.insertAtIndexOfNonFullNodeData(internalNode.data, kv, insertIndex);
               // split and re-insert the single child that needs rebalancing
-              insertRebalancedChild(internalNode.children, insertIndex, leftChild, rightChild);
+              NU.insertRebalancedChild(internalNode.children, insertIndex, leftChild, rightChild);
               #insert(null);
             }
           }
@@ -256,52 +254,6 @@ module {
         var count;
       }
     })
-  };
-
-  
-  /// Inserts element at the given index into a non-full leaf node
-  func insertAtIndexOfNonFullNodeData<K, V>(data: Data<K, V>, kvPair: (K, V), insertIndex: Nat): () {
-    let currentLastElementIndex = if (data.count == 0) { 0 } else { Int.abs(data.count - 1) };
-    AU.insertAtPosition<(K, V)>(data.kvs, ?kvPair, insertIndex, currentLastElementIndex);
-
-    // increment the count of data in this node since just inserted an element
-    data.count += 1;
-  };
-
-
-  func getKeyIndex<K, V>(data: Data<K, V>, compare: (K, K) -> O.Order, key: K): BS.SearchResult {
-    BS.binarySearchNode<K, V>(data.kvs, compare, key, data.count);
-  };
-
-
-  // Inserts two rebalanced (split) child halves into a non-full array of children. 
-  func insertRebalancedChild<K, V>(children: [var ?Node<K, V>], rebalancedChildIndex: Nat, leftChildInsert: Node<K, V>, rightChildInsert: Node<K, V>): () {
-    // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
-    var j: Nat = children.size() - 2;
-
-    // This is just a sanity check to ensure the children aren't already full (should split promote otherwise)
-    // TODO: Remove this check once confident
-    if (Option.isSome(children[j+1])) { assert false }; 
-
-    // Iterate backwards over the array and shift each element over to the right by one until the rebalancedChildIndex is hit
-    while (j > rebalancedChildIndex) {
-      children[j + 1] := children[j];
-      j -= 1;
-    };
-
-    // Insert both the left and right rebalanced children (replacing the pre-split child)
-    children[j] := ?leftChildInsert;
-    children[j+1] := ?rightChildInsert;
-  };
-
-
-  // Used when splitting the children of an internal node
-  //
-  // Takes in the rebalanced child index, as well as both halves of the rebalanced child and splits the children, inserting the left and right child halves appropriately
-  //
-  // For more context, see the documentation for the splitArrayAndInsertTwo method in ArrayUtils.mo
-  func splitChildrenInTwoWithRebalances<K, V>(children: [var ?Node<K, V>], rebalancedChildIndex: Nat, leftChildInsert: Node<K, V>, rightChildInsert: Node<K, V>): ([var ?Node<K, V>], [var ?Node<K, V>]) {
-    AU.splitArrayAndInsertTwo<Node<K, V>>(children, rebalancedChildIndex, leftChildInsert, rightChildInsert);
   };
 
 
