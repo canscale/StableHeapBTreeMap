@@ -11,3 +11,6 @@ docs:
 	$(shell vessel bin)/mo-doc
 test:
 	make -C test
+
+generateRand:
+	make -C test rand
