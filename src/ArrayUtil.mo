@@ -1,7 +1,6 @@
 /// A collection of Array utility functions **specific** to the BTree implementation
-
 import Array "mo:base/Array";
-
+import Debug "mo:base/Debug";
 
 module {
   /// Inserts an element into a mutable array at a specific index, shifting all other elements over
@@ -115,7 +114,7 @@ module {
       };
 
     switch(middleElement) {
-      case null { assert false; loop {} }; // Trap, as this should never happen
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In insertOneAtIndexAndSplitArray, middle element of a BTree node should never be null") };
       case (?el) { (leftSplit, el, rightSplit) }
     }
   };
@@ -192,4 +191,193 @@ module {
     (leftRebalancedChildren, rightRebalanceChildren)
   };
 
+
+  /// Specific to the BTree delete implementation (assumes node ordering such that nulls come at the end of the array)
+  ///
+  /// Assumptions:
+  /// * All nulls come at the end of the array
+  /// * Assumes the delete index provided is correct and non null - will trap otherwise
+  /// * deleteIndex < array.size()
+  ///
+  /// Deletes an element from the the array, and then shifts all non-null elements coming after that deleted element by 1
+  /// to the left. Returns the key-value that wer deleted
+  public func deleteAndShiftValuesOver<T>(array: [var ?T], deleteIndex: Nat): T {
+    var deleted : T = switch(array[deleteIndex]) {
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In deleteAndShiftValuesOver, an invalid/incorrect delete index was passed") };
+      case (?el) { el };
+    };
+
+    array[deleteIndex] := null;
+
+    var i = deleteIndex + 1;
+    label l loop {
+      if (i >= array.size()) { break l };
+
+      switch(array[i]) {
+        case null { break l };
+        case (?el) {
+          array[i-1] := array[i];
+        }
+      };
+
+      i += 1;
+    };
+
+    array[i-1] := null;
+
+    deleted;
+  }; 
+
+
+  // replaces two successive elements in the array with a single element and shifts all other elements to the left by 1
+  public func replaceTwoWithElementAndShift<T>(array: [var ?T], element: T, replaceIndex: Nat) {
+    array[replaceIndex] := ?element;
+
+    var i = replaceIndex + 1;
+    let endShiftIndex: Nat = array.size() - 1;
+    while (i < endShiftIndex) {
+      switch(array[i]) {
+        case (?el) { array[i] := array [i+1]};
+        case null { return }
+      };
+
+      i += 1;
+    };
+
+    array[endShiftIndex] := null;
+  };
+
+
+  /// BTree specific implementation
+  ///
+  /// In a single iteration insert at one position of the array while deleting at another position of the array, shifting all
+  /// elements as appropriate
+  ///
+  /// This is used when borrowing a key from an inorder predecessor/successor through the parent node
+  public func insertAtPostionAndDeleteAtPosition<T>(array: [var ?T], insertElement: ?T, insertIndex: Nat, deleteIndex: Nat): T {
+    var deleted: T = switch(array[deleteIndex]) {
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In insertAtPositionAndDeleteAtPosition, and incorrect delete index was passed") }; // indicated an incorrect delete index was passed - trap
+      case (?el) { el };
+    };
+
+    // Example of this case: 
+    //
+    //    Insert         Delete
+    //      V              V 
+    //[var ?10, ?20, ?30, ?40, ?50]
+    if (insertIndex < deleteIndex) {
+      var i = deleteIndex;
+      while (i > insertIndex) {
+        array[i] := array[i-1]; 
+        i -= 1;
+      };
+
+      array[insertIndex] := insertElement;
+    }
+    // Example of this case: 
+    //
+    //    Delete         Insert
+    //      V              V 
+    //[var ?10, ?20, ?30, ?40, ?50]
+    else if (insertIndex > deleteIndex) {
+      array[deleteIndex] := null;
+      var i = deleteIndex + 1;
+      label l loop {
+        if (i >= array.size()) { assert false; break l }; // TODO: remove? this should not happen since the insertIndex should get hit first?
+
+        if (i == insertIndex) {
+          array[i-1] := array[i];
+          array[i] := insertElement;
+          break l;
+        } else {
+          array[i-1] := array[i]
+        };
+
+        i += 1;
+      };
+
+    } 
+    // insertIndex == deleteIndex, can just do a swap
+    else { array[deleteIndex] := insertElement };
+
+    deleted;
+  };
+
+  // which child the deletionIndex is referring to
+  public type DeletionSide = { #left; #right; }; 
+
+  // merges a middle (parent) element with the left and right child arrays while deleting the element from the correct child by the deleteIndex passed 
+  public func mergeParentWithChildrenAndDelete<T>(
+    parentKV: ?T,
+    childCount: Nat,
+    leftChild: [var ?T],
+    rightChild: [var ?T],
+    deleteIndex: Nat,
+    deletionSide: DeletionSide
+  ): ([var ?T], T) {
+    let mergedArray = Array.init<?T>(leftChild.size(), null);
+    var i = 0;
+    switch(deletionSide) {
+      case (#left) {
+        // BTree implementation expects the deleted element to exist - if null, traps
+        let deletedElement = switch(leftChild[deleteIndex]) {
+          case (?el) { el };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In mergeParentWithChildrenAndDelete, an invalid delete index was passed") };
+        };
+
+        // copy over left child until deleted element is hit, then copy all elements after the deleted element
+        while (i < childCount) {
+          if (i < deleteIndex) {
+            mergedArray[i] := leftChild[i];
+          } else {
+            mergedArray[i] := leftChild[i+1];
+          };
+          i += 1;
+        };
+
+        // insert parent kv in the middle
+        mergedArray[childCount - 1] := parentKV;
+
+        // copy over the rest of the right child elements
+        while (i < childCount * 2) {
+          mergedArray[i] := rightChild[i - childCount];
+          i += 1;
+        };
+
+        (mergedArray, deletedElement)
+      };
+      case (#right) {
+        // BTree implementation expects the deleted element to exist - if null, traps
+        let deletedElement = switch(rightChild[deleteIndex]) {
+          case (?el) { el };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In mergeParentWithChildrenAndDelete: element at deleted index must exist") };
+        };
+        // since deletion side is #right, can safely copy over all elements from the left child
+        while (i < childCount) {
+          mergedArray[i] := leftChild[i];
+          i += 1;
+        };
+
+        // insert parent kv in the middle
+        mergedArray[childCount] := parentKV;
+        i += 1;
+
+        var j = 0;
+        // copy over right child until deleted element is hit, then copy elements after the deleted element
+        while (i < childCount * 2) {
+          if (j < deleteIndex) {
+            mergedArray[i] := rightChild[j];
+          } else {
+            mergedArray[i] := rightChild[j+1];
+          };
+          i += 1;
+          j += 1;
+        };
+
+        (mergedArray, deletedElement)
+      }
+    };
+  };
+
+  
 }
