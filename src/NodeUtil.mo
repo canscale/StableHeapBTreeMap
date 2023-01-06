@@ -3,6 +3,7 @@ import BS "./BinarySearch";
 import Types "./Types";
 
 import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 import Option "mo:base/Option";
 import Order "mo:base/Order";
 import Nat "mo:base/Nat";
@@ -71,12 +72,12 @@ module {
     switch(node) {
       case (?#leaf({ data; })) { 
         switch(data.kvs[data.count - 1]) {
-          case null { assert false; loop {} };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In getMaxKeyValue, data cannot have more elements than it's count") };
           case (?kv) { kv }
         };
       };
       case (?#internal({ data; children })) { getMaxKeyValue(children[data.count]) };
-      case null { assert false; loop {} };
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In getMaxKeyValue, the node provided cannot be null") };
     }
   };
 
@@ -121,7 +122,7 @@ module {
           }
         } else { null }
       };
-      case _ { assert false; loop {} }
+      case _ { Debug.trap("UNREACHABLE_ERROR: file a bug report! In borrowFromLeafChild, the node at the borrow child index cannot be null or internal") }
     }
   };
 
@@ -164,7 +165,7 @@ module {
           }
         } else { #notEnoughKeys({ data; children }) }
       };
-      case _ { assert false; loop {} }
+      case _ { Debug.trap("UNREACHABLE_ERROR: file a bug report! In borrow from internal sibling, the child at the borrow index cannot be null or a leaf") }
     }
   };
 

@@ -4,11 +4,13 @@ import Types "./Types";
 import AU "./ArrayUtil";
 import NU "./NodeUtil";
 
+import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 import Int "mo:base/Int";
 import O "mo:base/Order";
-
-import Array "mo:base/Array";
 import Nat "mo:base/Nat";
+
+
 
 
 module {
@@ -114,7 +116,7 @@ module {
             else {
               tree.root := switch(internalChild.children[0]) {
                 case (?node) { node };
-                case _ { assert false; loop {} }
+                case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.delete(), element deletion failed, due to a null replacement node error") };
               };
             };
             deletedValue
@@ -165,8 +167,8 @@ module {
           case (#notFound(childIndex)) { childIndex };
         };
         let child = switch(internalNode.children[childIndex]) {
-          case null { assert false; loop {} };
-          case (?c) { c }
+          case (?c) { c };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalDeleteHelper, child index of #keyFound or #notfound is null") };
         };
         switch(child) {
           // if child is internal
@@ -285,7 +287,7 @@ module {
                     // can't borrow from right child, delete from leaf and merge with right child and parent kv, then push down into new leaf
                     let rightChild = switch(internalNode.children[childIndex + 1]) {
                       case (?#leaf(rc)) { rc};
-                      case _ { assert false; loop {} };
+                      case _ { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalDeleteHelper, if trying to borrow from right leaf child is null, rightChild index cannot be null or internal") };
                     };
                     let (mergedLeaf, deletedKV) = mergeParentWithLeftRightChildLeafNodesAndDelete(
                       internalNode.data.kvs[childIndex],
@@ -339,7 +341,7 @@ module {
                     // can't borrow from left child, delete from leaf and merge with left child and parent kv, then push down into new leaf
                     let leftChild = switch(internalNode.children[childIndex - 1]) {
                       case (?#leaf(lc)) { lc};
-                      case _ { assert false; loop {} };
+                      case _ { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalDeleteHelper, if trying to borrow from left leaf child is null, then left child index must not be null or internal") };
                     };
                     let (mergedLeaf, deletedKV) = mergeParentWithLeftRightChildLeafNodesAndDelete(
                       internalNode.data.kvs[childIndex-1],

@@ -1,5 +1,6 @@
 /// A collection of Array utility functions **specific** to the BTree implementation
 import Array "mo:base/Array";
+import Debug "mo:base/Debug";
 
 module {
   /// Inserts an element into a mutable array at a specific index, shifting all other elements over
@@ -113,7 +114,7 @@ module {
       };
 
     switch(middleElement) {
-      case null { assert false; loop {} }; // Trap, as this should never happen
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In insertOneAtIndexAndSplitArray, middle element of a BTree node should never be null") };
       case (?el) { (leftSplit, el, rightSplit) }
     }
   };
@@ -202,7 +203,7 @@ module {
   /// to the left. Returns the key-value that wer deleted
   public func deleteAndShiftValuesOver<T>(array: [var ?T], deleteIndex: Nat): T {
     var deleted : T = switch(array[deleteIndex]) {
-      case null { assert false; loop {} }; // indicated an incorrect delete index was passed - trap
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In deleteAndShiftValuesOver, an invalid/incorrect delete index was passed") };
       case (?el) { el };
     };
 
@@ -255,7 +256,7 @@ module {
   /// This is used when borrowing a key from an inorder predecessor/successor through the parent node
   public func insertAtPostionAndDeleteAtPosition<T>(array: [var ?T], insertElement: ?T, insertIndex: Nat, deleteIndex: Nat): T {
     var deleted: T = switch(array[deleteIndex]) {
-      case null { assert false; loop {} }; // indicated an incorrect delete index was passed - trap
+      case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In insertAtPositionAndDeleteAtPosition, and incorrect delete index was passed") }; // indicated an incorrect delete index was passed - trap
       case (?el) { el };
     };
 
@@ -321,7 +322,7 @@ module {
         // BTree implementation expects the deleted element to exist - if null, traps
         let deletedElement = switch(leftChild[deleteIndex]) {
           case (?el) { el };
-          case null { assert false; loop {} };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In mergeParentWithChildrenAndDelete, an invalid delete index was passed") };
         };
 
         // copy over left child until deleted element is hit, then copy all elements after the deleted element
@@ -349,7 +350,7 @@ module {
         // BTree implementation expects the deleted element to exist - if null, traps
         let deletedElement = switch(rightChild[deleteIndex]) {
           case (?el) { el };
-          case null { assert false; loop {} };
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In mergeParentWithChildrenAndDelete: element at deleted index must exist") };
         };
         // since deletion side is #right, can safely copy over all elements from the left child
         while (i < childCount) {
