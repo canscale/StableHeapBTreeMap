@@ -2,7 +2,6 @@
 
 A functional, heap-based BTree data structure written in Motoko
 
-
 ## API Documentation
 
 API documentation for this library can be found at https://canscale.github.io/StableHeapBTreeMap/BTree.html
