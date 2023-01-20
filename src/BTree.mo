@@ -124,8 +124,39 @@ module {
           }
         }
       }
-
     }
+  };
+
+
+  /// Applies a function to the value of an existing key of a BTree
+  /// If the element does not yet exist in the BTree it creates a new key and value according to the result of passing null to the updateFunction
+  public func update<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): ?V {
+    let updateResult = switch(tree.root) {
+      case (#leaf(leafNode)) { leafUpdateHelper<K, V>(leafNode, tree.order, compare, key, updateFunction) };
+      case (#internal(internalNode)) { internalUpdateHelper<K, V>(internalNode, tree.order, compare, key, updateFunction) };
+    };
+
+    switch(updateResult) {
+      case (#insert(ov)) { ov };
+      case (#promote({ kv; leftChild; rightChild; })) {
+        tree.root := #internal({
+          data = {
+            kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
+              if (i == 0) { ?kv }
+              else { null }
+            });
+            var count = 1;
+          };
+          children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
+            if (i == 0) { ?leftChild }
+            else if (i == 1) { ?rightChild }
+            else { null }
+          });
+        });
+
+        null
+      }
+    };
   };
 
 
@@ -144,13 +175,13 @@ module {
 
   /// Performs a in-order scan of the Red-Black Tree between the provided key bounds, returning a number of matching entries in the direction specified (ascending/descending) limited by the limit parameter specified in an array formatted as (K, V) for each entry
   ///
-  /// * t - the BTree being scanned
+  /// * tree - the BTree being scanned
   /// * compare - the comparison function used to compare (in terms of order) the provided bounds against the keys in the BTree
   /// * lowerBound - the lower bound used in the scan
   /// * upperBound - the upper bound used in the scan
   /// * dir - the direction of the scan
   /// * limit - the maximum possible number of items to scan (that are between the lower and upper bounds) before returning
-  public func scanLimit<K, V>(t: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
+  public func scanLimit<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
     if (limit == 0) { return { results = []; nextKey = null }};
 
     switch(compare(lowerBound, upperBound)) {
@@ -158,7 +189,7 @@ module {
       case (#greater) {{ results = []; nextKey = null }};
       // return the single entry if exists if the lower and upper bounds are equivalent
       case (#equal) { 
-        switch(get<K, V>(t, compare, lowerBound)) {
+        switch(get<K, V>(tree, compare, lowerBound)) {
           case null {{ results = []; nextKey = null }};
           case (?value) {{ results = [(lowerBound, value)]; nextKey = null }};
         }
@@ -166,7 +197,7 @@ module {
       case (#less) { 
         // add 1 to limit to allow additional space for next key without worrying about Nat underflow
         let limitPlusNextKey = limit + 1;
-        let { resultBuffer; nextKey } = iterScanLimit<K, V>(t.root, compare, lowerBound, upperBound, dir, limitPlusNextKey);
+        let { resultBuffer; nextKey } = iterScanLimit<K, V>(tree.root, compare, lowerBound, upperBound, dir, limitPlusNextKey);
         { results = Buffer.toArray(resultBuffer); nextKey = nextKey };
       }
     }
@@ -1160,6 +1191,126 @@ module {
     };
   };
 
+  // TODO: Think if want to combine this with the leafInsertHelper
+  // Helper for updating an element in a leaf node
+  func leafUpdateHelper<K, V>(leafNode: Leaf<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): (IntermediateInsertResult<K, V>) {
+    // Perform binary search to see if the element exists in the node
+    switch(NU.getKeyIndex<K, V>(leafNode.data, compare, key)) {
+      case (#keyFound(insertIndex)) {
+        let previous = leafNode.data.kvs[insertIndex];
+        switch(previous) {
+          case (?ov) { 
+            leafNode.data.kvs[insertIndex] := ?(key, updateFunction(?ov.1));
+            #insert(?ov.1)
+          };
+          // the binary search has already found an element, so this case should never happen
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In leafUpdateHelper, when matching on a #keyFound previous value, the previous kv turned out to be null") };
+        }
+      };
+      case (#notFound(insertIndex)) {
+        // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
+        let maxKeys: Nat = order - 1;
+        // If the leaf is full, insert, split the node, and promote the middle element
+        if (leafNode.data.count >= maxKeys) {
+          let (leftKVs, promotedParentElement, rightKVs) = AU.insertOneAtIndexAndSplitArray(
+            leafNode.data.kvs,
+            (key, updateFunction(null)),
+            insertIndex
+          );
+
+          let leftCount = order / 2;
+          let rightCount: Nat = if (order % 2 == 0) { leftCount - 1 } else { leftCount };
+
+          (
+            #promote({
+              kv = promotedParentElement;
+              leftChild = createLeaf<K, V>(leftKVs, leftCount);
+              rightChild = createLeaf<K, V>(rightKVs, rightCount);
+            })
+          )
+        } 
+        // Otherwise, insert at the specified index (shifting elements over if necessary) 
+        else {
+          NU.insertAtIndexOfNonFullNodeData<K, V>(leafNode.data, ?(key, updateFunction(null)), insertIndex);
+          #insert(null);
+        };
+      }
+    }
+  };
+
+  // TODO: Think if want to combine this with the internalInsertHelper
+  // Helper for inserting into an internal node
+  func internalUpdateHelper<K, V>(internalNode: Internal<K, V>, order: Nat, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): IntermediateInsertResult<K, V> {
+    switch(NU.getKeyIndex<K, V>(internalNode.data, compare, key)) {
+      case (#keyFound(insertIndex)) {
+        let previous = internalNode.data.kvs[insertIndex];
+        switch(previous) {
+          case (?ov) { 
+            internalNode.data.kvs[insertIndex] := ?(key, updateFunction(?ov.1));
+            #insert(?ov.1)
+          };
+          // the binary search has already found an element, so this case should never happen
+          case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalUpdateHelper, when matching on a #keyFound previous value, the previous kv turned out to be null") };
+        }
+      };
+      case (#notFound(insertIndex)) {
+        let updateResult = switch(internalNode.children[insertIndex]) {
+          case null { assert false; #insert(null) };
+          case (?#leaf(leafNode)) { leafUpdateHelper(leafNode, order, compare, key, updateFunction) };
+          case (?#internal(internalChildNode)) { internalUpdateHelper(internalChildNode, order, compare, key, updateFunction) };
+        };
+
+        switch(updateResult) {
+          case (#insert(ov)) { #insert(ov) };
+          case (#promote({ kv; leftChild; rightChild; })) {
+            // Note: BTree will always have an order >= 4, so this will never have negative Nat overflow
+            let maxKeys: Nat = order - 1;
+            // if current internal node is full, need to split the internal node
+            if (internalNode.data.count >= maxKeys) {
+              // insert and split internal kvs, determine new promotion target kv
+              let (leftKVs, promotedParentElement, rightKVs) = AU.insertOneAtIndexAndSplitArray(
+                internalNode.data.kvs,
+                (kv),
+                insertIndex
+              );
+
+              // calculate the element count in the left KVs and the element count in the right KVs
+              let leftCount = order / 2;
+              let rightCount: Nat = if (order % 2 == 0) { leftCount - 1 } else { leftCount };
+
+              // split internal children
+              let (leftChildren, rightChildren) = NU.splitChildrenInTwoWithRebalances<K, V>(
+                internalNode.children,
+                insertIndex,
+                leftChild,
+                rightChild
+              );
+
+              // send the kv to be promoted, as well as the internal children left and right split 
+              #promote({
+                kv = promotedParentElement;
+                leftChild = #internal({
+                  data = { kvs = leftKVs; var count = leftCount; };
+                  children = leftChildren;
+                });
+                rightChild = #internal({
+                  data = { kvs = rightKVs; var count = rightCount; };
+                  children = rightChildren;
+                })
+              });
+            }
+            else {
+              // insert the new kvs into the internal node
+              NU.insertAtIndexOfNonFullNodeData(internalNode.data, ?kv, insertIndex);
+              // split and re-insert the single child that needs rebalancing
+              NU.insertRebalancedChild(internalNode.children, insertIndex, leftChild, rightChild);
+              #insert(null);
+            }
+          }
+        };
+      }
+    };
+  };
 
   func createLeaf<K, V>(kvs: [var ?(K, V)], count: Nat): Node<K, V> {
     #leaf({
@@ -1169,7 +1320,6 @@ module {
       }
     })
   };
-
 
   /// Opinionated version of generating a textual representation of a BTree. Primarily to be used
   /// for testing and debugging

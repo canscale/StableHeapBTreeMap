@@ -1,8 +1,6 @@
 # StableHeapBTreeMap
 
-Main memory/heap-based BTree data structures written in Motoko
-
-
+A functional, heap-memory based BTree data structures written in Motoko
 
 ## API Documentation
 

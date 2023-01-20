@@ -102,6 +102,701 @@ let getSuite = S.suite("get", [
   ),
 ]);
 
+func incrementNatFunction(nat: ?Nat): Nat {
+  switch(nat) {
+    case null { 0 };
+    case (?n) { n + 1 };
+  }
+};
+
+let updateSuite = S.suite("update", [
+  S.suite("root as leaf tests", [
+    S.test("inserts, applying the function correctly into an empty BTree",
+      do {
+        let t = BT.init<Nat, Nat>(?4);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 4, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(4, 0), null, null];
+            var count = 1;
+          }
+        });
+        order = 4;
+      }))
+    ),
+    S.test("updating an element into a BTree that does not exist returns null",
+      do {
+        let t = BT.init<Nat, Nat>(?4);
+        BT.update<Nat, Nat>(t, Nat.compare, 4, incrementNatFunction);
+      },
+      M.equals(T.optional<Nat>(T.natTestable, null))
+    ),
+    S.test("updates an already existing element correctly into a BTree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(6, [2, 4, 6]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 2, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(2, 3), ?(4, 4), ?(6, 6), null, null];
+            var count = 3;
+          }
+        });
+        order = 6;
+      }))
+    ),
+    S.test("returns the previous value of when updating an already existing element in the BTree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(6, [2, 4, 6]);
+        BT.update<Nat, Nat>(t, Nat.compare, 2, incrementNatFunction);
+      },
+      M.equals(T.optional<Nat>(T.natTestable, ?2))
+    ),
+    S.test("update inserts a new smallest element correctly into a BTree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(6, [2, 4, 6]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 1, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(1, 0), ?(2, 2), ?(4, 4), ?(6, 6), null];
+            var count = 4;
+          }
+        });
+        order = 6;
+      }))
+    ),
+    S.test("update inserts middle element correctly into a BTree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(6, [2, 4, 6]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 5, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(2, 2), ?(4, 4), ?(5, 0), ?(6, 6), null];
+            var count = 4;
+          }
+        });
+        order = 6;
+      }))
+    ),
+    S.test("update inserts last element correctly into a BTree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(6, [2, 4, 6]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 8, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(2, 2), ?(4, 4), ?(6, 6), ?(8, 0), null];
+            var count = 4;
+          }
+        });
+        order = 6;
+      }))
+    ),
+    S.test("update that is inserting greatest element into full leaf splits an even ordererd BTree correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 8, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(6, 6), null, null];
+            var count = 1;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(2, 2), ?(4, 4), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(8, 0), null, null];
+                var count = 1;
+              };
+            }),
+            null,
+            null
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("update that is inserting greatest element into full leaf splits an odd ordererd BTree correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(5, [2, 4, 6, 7]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 8, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(6, 6), null, null, null];
+            var count = 1;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(2, 2), ?(4, 4), null, null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(7, 7), ?(8, 0), null, null];
+                var count = 2;
+              };
+            }),
+            null,
+            null,
+            null
+          ]
+        });
+        order = 5;
+      }))
+    ),
+  ]),
+  S.suite("root as internal tests", [
+    S.test("updating an element that already exists applies the function to replace it correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 8, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(6, 6), null, null];
+            var count = 1;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(2, 2), ?(4, 4), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(8, 9), null, null];
+                var count = 1;
+              };
+            }),
+            null,
+            null,
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("update inserts an element that does not yet exist into the right child",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 7, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(6, 6), null, null];
+            var count = 1;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(2, 2), ?(4, 4), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(7, 0), ?(8, 8), null];
+                var count = 2;
+              };
+            }),
+            null,
+            null,
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("update inserts an element that does not yet exist into the left child",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 3, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(6, 6), null, null];
+            var count = 1;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(2, 2), ?(3, 0), ?(4, 4)];
+                var count = 3;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(8, 8), null, null];
+                var count = 1;
+              };
+            }),
+            null,
+            null,
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not yet exist into a full left most child promotes to the root correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8, 3]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 1, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(3, 3), ?(6, 6), null];
+            var count = 2;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(1, 0), ?(2, 2), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(4, 4), null, null];
+                var count = 1;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(8, 8), null, null];
+                var count = 1;
+              };
+            }),
+            null,
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not yet exist into a full right most child promotes it to the root correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8, 3, 1, 10, 15]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 12, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(3, 3), ?(6, 6), ?(12, 0)];
+            var count = 3;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(1, 1), ?(2, 2), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(4, 4), null, null];
+                var count = 1;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(8, 8), ?(10, 10), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(15, 15), null, null];
+                var count = 1;
+              };
+            }),
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not yet exist into a full right most child promotes it to the root correctly",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8, 3, 1, 10, 15, 12]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 7, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(3, 3), ?(6, 6), ?(12, 12)];
+            var count = 3;
+          };
+          children = [var 
+            ?#leaf({
+              data = {
+                kvs = [var ?(1, 1), ?(2, 2), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(4, 4), null, null];
+                var count = 1;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(7, 0), ?(8, 8), ?(10, 10)];
+                var count = 3;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(15, 15), null, null];
+                var count = 1;
+              };
+            }),
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not exist into a tree with a full root that where the inserted element is promoted to become the new root, also hitting case 2 of splitChildrenInTwoWithRebalances",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 4, 6, 8, 3, 1, 10, 15, 12, 7]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 9, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(9, 0), null, null];
+            var count = 1;
+          };
+          children = [var
+            ?#internal({
+              data = {
+                kvs = [var ?(3, 3), ?(6, 6), null];
+                var count = 2;
+              };
+              children = [var 
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(1, 1), ?(2, 2), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(4, 4), null, null];
+                    var count = 1;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(7, 7), ?(8, 8), null];
+                    var count = 2;
+                  };
+                }),
+                null
+              ]
+            }),
+            ?#internal({
+              data = {
+                kvs = [var ?(12, 12), null, null];
+                var count = 1;
+              };
+              children = [var
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(10, 10), null, null];
+                    var count = 1;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(15, 15), null, null];
+                    var count = 1;
+                  };
+                }),
+                null,
+                null
+              ]
+            }),
+            null,
+            null
+
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not exist into a tree with a full root that where the inserted element is promoted to be in the left internal child of the new root",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 10, 20, 8, 5, 7, 15, 25, 40, 3]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 4, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(10, 10), null, null];
+            var count = 1;
+          };
+          children = [var
+            ?#internal({
+              data = {
+                kvs = [var ?(4, 0), ?(7, 7), null];
+                var count = 2;
+              };
+              children = [var 
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(2, 2), ?(3, 3), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(5, 5), null, null];
+                    var count = 1;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(8, 8), null, null];
+                    var count = 1;
+                  };
+                }),
+                null
+              ]
+            }),
+            ?#internal({
+              data = {
+                kvs = [var ?(25, 25), null, null];
+                var count = 1;
+              };
+              children = [var
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(15, 15), ?(20, 20), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(40, 40), null, null];
+                    var count = 1;
+                  };
+                }),
+                null,
+                null
+              ]
+            }),
+            null,
+            null
+
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not exist into that promotes and element from a full internal into a root internal with space, hitting case 2 of splitChildrenInTwoWithRebalances",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [2, 10, 20, 8, 5, 7, 15, 25, 40, 3, 4, 50, 60, 70, 80, 90, 100, 110, 120]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 130, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(10, 10), ?(90, 90), null];
+            var count = 2;
+          };
+          children = [var
+            ?#internal({
+              data = {
+                kvs = [var ?(4, 4), ?(7, 7), null];
+                var count = 2;
+              };
+              children = [var 
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(2, 2), ?(3, 3), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(5, 5), null, null];
+                    var count = 1;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(8, 8), null, null];
+                    var count = 1;
+                  };
+                }),
+                null
+              ]
+            }),
+            ?#internal({
+              data = {
+                kvs = [var ?(25, 25), ?(60, 60), null];
+                var count = 2;
+              };
+              children = [var
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(15, 15), ?(20, 20), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(40, 40), ?(50, 50), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(70, 70), ?(80, 80), null];
+                    var count = 2;
+                  };
+                }),
+                null
+              ]
+            }),
+            ?#internal({
+              data = {
+                kvs = [var ?(120, 120), null, null];
+                var count = 1;
+              };
+              children = [var
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(100, 100), ?(110, 110), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(130, 0), null, null];
+                    var count = 1;
+                  };
+                }),
+                null,
+                null
+              ];
+            }),
+            null
+
+          ]
+        });
+        order = 4;
+      }))
+    ),
+    S.test("an update that inserts an element that does not exist into a tree with a full root, promoting an element to the root and hitting case 1 of splitChildrenInTwoWithRebalances",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [25, 100, 50, 75, 125, 150, 175, 200, 225, 250, 5]);
+        let _ = BT.update<Nat, Nat>(t, Nat.compare, 10, incrementNatFunction);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(150, 150), null, null];
+            var count = 1;
+          };
+          children = [var
+            ?#internal({
+              data = {
+                kvs = [var ?(25, 25), ?(75, 75), null];
+                var count = 2;
+              };
+              children = [var 
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(5, 5), ?(10, 0), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(50, 50), null, null];
+                    var count = 1;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(100, 100), ?(125, 125), null];
+                    var count = 2;
+                  };
+                }),
+                null
+              ]
+            }),
+            ?#internal({
+              data = {
+                kvs = [var ?(225, 225), null, null];
+                var count = 1;
+              };
+              children = [var
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(175, 175), ?(200, 200), null];
+                    var count = 2;
+                  };
+                }),
+                ?#leaf({
+                  data = {
+                    kvs = [var ?(250, 250), null, null];
+                    var count = 1;
+                  };
+                }),
+                null,
+                null
+              ]
+            }),
+            null,
+            null
+
+          ]
+        });
+        order = 4;
+      }))
+    ),
+  ])
+]);
 
 let insertSuite = S.suite("insert", [
   S.suite("root as leaf tests", [
@@ -2919,6 +3614,7 @@ S.run(S.suite("BTree",
     initSuite,
     getSuite,
     insertSuite,
+    updateSuite,
     deleteSuite,
     scanLimitSuite,
   ]
