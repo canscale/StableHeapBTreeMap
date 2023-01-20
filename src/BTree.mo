@@ -143,6 +143,13 @@ module {
   };
 
   /// Performs a in-order scan of the Red-Black Tree between the provided key bounds, returning a number of matching entries in the direction specified (ascending/descending) limited by the limit parameter specified in an array formatted as (K, V) for each entry
+  ///
+  /// * t - the BTree being scanned
+  /// * compare - the comparison function used to compare (in terms of order) the provided bounds against the keys in the BTree
+  /// * lowerBound - the lower bound used in the scan
+  /// * upperBound - the upper bound used in the scan
+  /// * dir - the direction of the scan
+  /// * limit - the maximum possible number of items to scan (that are between the lower and upper bounds) before returning
   public func scanLimit<K, V>(t: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
     if (limit == 0) { return { results = []; nextKey = null }};
 
