@@ -20,6 +20,21 @@ func quickCreateBTreeWithKVPairs(order: Nat, keyValueDup: [Nat]): BT.BTree<Nat, 
   BT.createBTreeWithKVPairs<Nat, Nat>(order, Nat.compare, kvPairs);
 };
 
+func quickCreateNatResultSet(start: Nat, end: Nat): [(Nat, Nat)] {
+  Array.tabulate<(Nat, Nat)>(end - start + 1, func(i) {
+    let el = i + start;
+    (el, el)
+  });
+};
+
+func quickCreateNatResultSetReverse(end: Nat, start: Nat): [(Nat, Nat)] {
+  assert end >= start and end > 0;
+  Array.tabulate<(Nat, Nat)>(end - start + 1, func(i) {
+    let el = end - i: Nat;
+    (el, el)
+  });
+};
+
 
 let initSuite = S.suite("init", [
   S.test("initializes an empty BTree with order 4 to have the correct number of keys (order - 1)",
@@ -859,8 +874,6 @@ let deleteSuite = S.suite("delete", [
         }))
       ),
       S.suite("if the leaf has the minimum # of keys", [
-        /*
-        */
         S.test("if the leaf is rightmost and can borrow from its left sibling, deletes the key correctly",
           do {
             let t = quickCreateBTreeWithKVPairs(4, [10, 20, 30, 40]);
@@ -1356,8 +1369,6 @@ let deleteSuite = S.suite("delete", [
             order = 4;
           }))
         ),
-        /*
-        */
         S.test("BTree with order=6 test of if the leaf is in the middle and can't borrow from its left sibling or its right sibling, and the parent internal has > minKeys merges the leaf with its left sibling and the parent key and deletes the key correctly",
           do {
             let t = quickCreateBTreeWithKVPairs(6, Array.tabulate<Nat>(26, func(i) { i+1 }));
@@ -1522,8 +1533,6 @@ let deleteSuite = S.suite("delete", [
             order = 6;
           }))
         ),
-        /*
-        */
       ]),
     ])
   ]),
@@ -2031,12 +2040,886 @@ let deleteSuite = S.suite("delete", [
   ]),
 ]);
 
+let scanLimitSuite = S.suite("scanLimit", [
+  S.suite("iterating foward", [
+    S.test("if limit is 0 returns the empty response",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+        BT.scanLimit(
+          t,
+          Nat.compare,
+          0,
+          4,
+          #fwd,
+          0,
+        )
+      },
+      M.equals(BTM.testableNatBTreeScanLimitResult({
+        results = [];
+        nextKey = null;
+      }))
+    ),
+    S.test("if the lower bound is greater than the upper bound returns the empty response",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+        BT.scanLimit(
+          t,
+          Nat.compare,
+          4,
+          0,
+          #fwd,
+          5,
+        )
+      },
+      M.equals(BTM.testableNatBTreeScanLimitResult({
+        results = [];
+        nextKey = null;
+      }))
+    ),
+    S.suite("with BTree as leaf", [
+      S.test("if the lower bound is greater than the greatest key in the tree returns the empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            4,
+            7,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds exactly contain all elements",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            1,
+            3,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(1, 1), (2, 2), (3, 3)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and lower bound equals upper bound",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            2,
+            2,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(2, 2)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds are from first to middle element",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            0,
+            2,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(1, 1), (2, 2)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds are from middle to last element",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            2,
+            4,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(2, 2), (3, 3)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is less than the result set",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            0,
+            4,
+            #fwd,
+            2,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(1, 1), (2, 2)];
+          nextKey = ?3;
+        }))
+      ),
+    ]),
+    S.suite("with BTree as multiple levels", [
+      S.test("if lower bound is greater than the greatest key returns empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            40,
+            50,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.test("if upper bound is lower than the lower key returns empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+10 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            1,
+            9,
+            #fwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.suite("if the limit is greater than the result set", [
+        S.test("if bounds contain all elements",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 31);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to a middle leaf element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              7,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 7);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to a end leaf element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              17,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 17);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an internal kv",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              21,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 21);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an root internal kv",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              9,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 9);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a middle leaf element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              10,
+              31,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(10, 31);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a last leaf element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              23,
+              31,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(23, 31);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a middle internal element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              6,
+              31,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(6, 31);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a root internal element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              18,
+              31,
+              #fwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(18, 31);
+            nextKey = null;
+          }))
+        ),
+      ]),
+      S.suite("if the limit is less than the result set", [
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              7,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 7);
+            nextKey = ?8;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a internal key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              11,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 11);
+            nextKey = ?12;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a root key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              17,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 17);
+            nextKey = ?18;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an internal kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              12,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 12);
+            nextKey = ?13;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an end internal kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              30,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 30);
+            nextKey = ?31;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an root kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #fwd,
+              18,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSet(1, 18);
+            nextKey = ?19;
+          }))
+        ),
+      ]),
+    ]),
+  ]),
+  S.suite("iterating backwards", [
+    S.test("if limit is 0 returns the empty response",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+        BT.scanLimit(
+          t,
+          Nat.compare,
+          0,
+          4,
+          #bwd,
+          0,
+        )
+      },
+      M.equals(BTM.testableNatBTreeScanLimitResult({
+        results = [];
+        nextKey = null;
+      }))
+    ),
+    S.test("if the lower bound is greater than the upper bound returns the empty response",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+        BT.scanLimit(
+          t,
+          Nat.compare,
+          4,
+          0,
+          #bwd,
+          5,
+        )
+      },
+      M.equals(BTM.testableNatBTreeScanLimitResult({
+        results = [];
+        nextKey = null;
+      }))
+    ),
+    S.suite("with BTree as leaf", [
+      S.test("if the lower bound is greater than the greatest key in the tree returns the empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            4,
+            7,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds exactly contain all elements",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            1,
+            3,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(3, 3), (2, 2), (1, 1)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and lower bound equals upper bound",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            2,
+            2,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(2, 2)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds are from first to middle element",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            0,
+            2,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(2, 2), (1, 1)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is greater than the result set and bounds are from middle to last element",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            2,
+            4,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(3, 3), (2, 2)];
+          nextKey = null;
+        }))
+      ),
+      S.test("if limit is less than the result set",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            0,
+            4,
+            #bwd,
+            2,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(3, 3), (2, 2)];
+          nextKey = ?1;
+        }))
+      ),
+    ]),
+    S.suite("with BTree as multiple levels", [
+      S.test("if lower bound is greater than the greatest key returns empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            40,
+            50,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.test("if upper bound is lower than the lower key returns empty response",
+        do {
+          let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+10 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            1,
+            9,
+            #bwd,
+            5,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [];
+          nextKey = null;
+        }))
+      ),
+      S.suite("if the limit is greater than the result set", [
+        S.test("if bounds contain all elements",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 1);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to a middle leaf element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              7,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(7, 1);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to a end leaf element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              17,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(17, 1);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an internal kv",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              21,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(21, 1);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an root internal kv",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              9,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(9, 1);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a middle leaf element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              10,
+              31,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 10);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a last leaf element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              23,
+              31,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 23);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a middle internal element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              6,
+              31,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 6);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from a root internal element to the last element",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              18,
+              31,
+              #bwd,
+              40,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 18);
+            nextKey = null;
+          }))
+        ),
+      ]),
+      S.suite("if the limit is less than the result set", [
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              9,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 23);
+            nextKey = ?22;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a internal key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              16,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 16);
+            nextKey = ?15;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on a leaf kv with next key being a root key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              22,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 10);
+            nextKey = ?9;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an internal kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              20,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 12);
+            nextKey = ?11;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an end internal kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              17,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 15);
+            nextKey = ?14;
+          }))
+        ),
+        S.test("if bounds contain all elements and stop on an root kv with next key being a leaf key",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
+            BT.scanLimit<Nat, Nat>(
+              t,
+              Nat.compare,
+              0,
+              40,
+              #bwd,
+              14,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = quickCreateNatResultSetReverse(31, 18);
+            nextKey = ?17;
+          }))
+        ),
+      ]),
+    ]),
+  ]),
+]);
+
 
 S.run(S.suite("BTree",
   [
     initSuite,
     getSuite,
     insertSuite,
-    deleteSuite
+    deleteSuite,
+    scanLimitSuite,
   ]
 ));

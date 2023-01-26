@@ -2,15 +2,16 @@
 
 import Types "./Types";
 import AU "./ArrayUtil";
+import BS "./BinarySearch";
 import NU "./NodeUtil";
 
 import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 import Debug "mo:base/Debug";
 import Int "mo:base/Int";
 import O "mo:base/Order";
 import Nat "mo:base/Nat";
-
-
+import Stack "mo:base/Stack";
 
 
 module {
@@ -126,6 +127,570 @@ module {
 
     }
   };
+
+
+  /// The direction of iteration
+  /// #fwd -> forward (ascending)
+  /// #bwd -> backwards (descending)
+  public type Direction = { #fwd; #bwd };
+
+  /// The object returned from a scan contains:
+  /// * results - a key value array of all results found (within the bounds and limit provided)
+  /// * nextKey - an optional next key if there exist more results than the limit provided within the given bounds
+  public type ScanLimitResult<K, V> = {
+    results: [(K, V)];
+    nextKey: ?K;
+  };
+
+  /// Performs a in-order scan of the Red-Black Tree between the provided key bounds, returning a number of matching entries in the direction specified (ascending/descending) limited by the limit parameter specified in an array formatted as (K, V) for each entry
+  ///
+  /// * t - the BTree being scanned
+  /// * compare - the comparison function used to compare (in terms of order) the provided bounds against the keys in the BTree
+  /// * lowerBound - the lower bound used in the scan
+  /// * upperBound - the upper bound used in the scan
+  /// * dir - the direction of the scan
+  /// * limit - the maximum possible number of items to scan (that are between the lower and upper bounds) before returning
+  public func scanLimit<K, V>(t: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
+    if (limit == 0) { return { results = []; nextKey = null }};
+
+    switch(compare(lowerBound, upperBound)) {
+      // return empty array if lower bound is greater than upper bound      
+      case (#greater) {{ results = []; nextKey = null }};
+      // return the single entry if exists if the lower and upper bounds are equivalent
+      case (#equal) { 
+        switch(get<K, V>(t, compare, lowerBound)) {
+          case null {{ results = []; nextKey = null }};
+          case (?value) {{ results = [(lowerBound, value)]; nextKey = null }};
+        }
+      };
+      case (#less) { 
+        // add 1 to limit to allow additional space for next key without worrying about Nat underflow
+        let limitPlusNextKey = limit + 1;
+        let { resultBuffer; nextKey } = iterScanLimit<K, V>(t.root, compare, lowerBound, upperBound, dir, limitPlusNextKey);
+        { results = Buffer.toArray(resultBuffer); nextKey = nextKey };
+      }
+    }
+  };
+
+  // Intermediate result used during the scanning of different BTree node types
+  type IntermediateScanResult<K, V> = {
+    // the buffer scan result from a specific node
+    resultBuffer: Buffer.Buffer<(K, V)>; 
+    // the remaining limit
+    limit: Nat;
+    // the next key (applicable if limit was hit, but more entries exist)
+    nextKey: ?K;
+  };
+
+  func iterScanLimit<K, V>(node: Node<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): IntermediateScanResult<K, V> {
+    switch(dir, node) {
+      case (#fwd, #leaf(leafNode)) {
+        iterScanLimitLeafForward<K, V>(leafNode, compare, lowerBound, upperBound, limit);
+      };
+      case (#bwd, #leaf(leafNode)) {
+        iterScanLimitLeafReverse<K, V>(leafNode, compare, lowerBound, upperBound, limit);
+      };
+      case (#fwd, #internal(internalNode)) {
+        iterScanLimitInternalForward<K, V>(internalNode, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat);
+      };
+      case (#bwd, #internal(internalNode)) {
+        iterScanLimitInternalReverse<K, V>(internalNode, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat);
+      };
+    }
+  };
+
+  func iterScanLimitLeafForward<K, V>({ data }: Leaf<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat): IntermediateScanResult<K, V> {
+    let resultBuffer: Buffer.Buffer<(K, V)> = Buffer.Buffer(0);
+    var remainingLimit = limit;
+    var elementIndex = switch(BS.binarySearchNode(data.kvs, compare, lowerBound, data.count)) {
+      case (#keyFound(idx)) { idx };
+      case (#notFound(idx)) { 
+        // skip this leaf if lower bound is greater than all elements in the leaf
+        if (idx >= data.count) { 
+          return {
+            resultBuffer;
+            limit = remainingLimit;
+            nextKey = null;
+          }
+        };
+        idx 
+      };
+    };
+
+    label l while (remainingLimit > 1) {
+      switch(data.kvs[elementIndex]) {
+        case (?(k, v)) {
+          switch(compare(k, upperBound)) {
+            // iterating forward and key is greater than the upper bound
+            // Set the limit to 0 and return the buffer to signal stopping the scan in the calling context. There is no next key
+            case (#greater) { 
+              return {
+                resultBuffer;
+                limit = 0;
+                nextKey = null;
+              }
+            };
+            // Key is equal to the upper bound. Add the element to the buffer, then set the limit to 0 and return the buffer to signal stopping the scan in the calling context. There is no next key
+            case (#equal) {
+              resultBuffer.add((k, v));
+              return {
+                resultBuffer;
+                limit = 0;
+                nextKey = null;
+              }
+            };
+            // Iterating forward and key is less than the upper bound. Add the element to the buffer, decrement from the limit, and increase the element index
+            case (#less) {
+              resultBuffer.add((k, v));
+              remainingLimit -= 1;
+              elementIndex += 1;
+              if (elementIndex >= data.count) { break l };
+            };
+          }
+        };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitLeafForward, attemmpted to add a null element to the result buffer") };
+      };
+    };
+
+    // if added all elements in the leaf, return the buffer and remaining limit
+    if (elementIndex == data.count) {
+      return {
+        resultBuffer;
+        limit = remainingLimit;
+        nextKey = null;
+      };
+    };
+
+    // otherwise, the remaining limit must equal 1 and we haven't gone through all of the elements in the leaf, set the next key and limit to 0, and return the buffer to signal stopping the scan in the calling context
+    if (remainingLimit == 1) {
+      return {
+        resultBuffer;
+        limit = 0;
+        nextKey = switch(data.kvs[elementIndex]) {
+          case null { null };
+          case (?kv) { ?kv.0 };
+        };
+      };
+    };
+
+    Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitLeafForward, reached a catch-all case that should not happen with a remaining limit =" # Nat.toText(remainingLimit));
+  };
+
+  
+  func iterScanLimitLeafReverse<K, V>({ data }: Leaf<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat): IntermediateScanResult<K, V> {
+    let resultBuffer: Buffer.Buffer<(K, V)> = Buffer.Buffer(0);
+    var remainingLimit = limit;
+    var elementIndex = switch(BS.binarySearchNode(data.kvs, compare, upperBound, data.count)) {
+      case (#keyFound(idx)) { idx };
+      case (#notFound(idx)) { 
+        // skip this leaf if upper bound is less than all elements in the leaf
+        if (idx == 0) { 
+          return {
+            resultBuffer;
+            limit = 0;
+            nextKey = null;
+          }
+        };
+
+        if (idx == data.count) { idx - 1: Nat } else { idx };
+      };
+    };
+
+    label l while (remainingLimit > 1) {
+      switch(data.kvs[elementIndex]) {
+        case (?(k, v)) {
+          switch(compare(k, lowerBound)) {
+            // Iterating in reverse and key is less than the lower bound.
+            // Set the limit to 0 and return the buffer to signal stopping the scan in the calling context. There is no next key
+            case (#less) { 
+              return {
+                resultBuffer;
+                limit = 0;
+                nextKey = null;
+              }
+            };
+            // Key is equal to the lower bound. Add the element to the buffer, then set the limit to 0 and return the buffer to signal stopping the scan in the calling context. There is no next key
+            case (#equal) {
+              resultBuffer.add((k, v));
+              return {
+                resultBuffer;
+                limit = 0;
+                nextKey = null;
+              }
+            };
+            // Iterating in reverse and key is greater than the lower bound. Add the element to the buffer, decrement from the limit, and decrement the element index
+            case (#greater) {
+              resultBuffer.add((k, v));
+              remainingLimit -= 1;
+              // if this was the last element of the leaf, return the buffer and remaining limit)
+              if (elementIndex == 0) {
+                return {
+                  resultBuffer;
+                  limit = remainingLimit;
+                  nextKey = null;
+                }
+              };
+              elementIndex -= 1;
+            }
+          }
+        };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitLeafReverse, attemmpted to add a null element to the result buffer") };
+      };
+    };
+
+    if (remainingLimit > 1) {
+      return {
+        resultBuffer;
+        limit = remainingLimit;
+        nextKey = null;
+      };
+    };
+
+    // otherwise, the remaining limit must equal 1 and we haven't gone through all of the elements in the leaf, set the next key and limit to 0, and return the buffer to signal stopping the scan in the calling context
+    if (remainingLimit == 1) {
+      return {
+        resultBuffer;
+        limit = 0;
+        nextKey = switch(data.kvs[elementIndex]) {
+          case null { null };
+          case (?kv) { ?kv.0 };
+        };
+      };
+    };
+
+    Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitLeafReverse, reached a catch-all case that should not happen with a remaining limit =" # Nat.toText(remainingLimit));
+  };
+
+
+  // Cursor of the next key value pair in the internal node to explore from
+  type ScanCursor<K, V> = { #leafCursor: Leaf<K, V>; #internalCursor: InternalCursor<K, V> };
+  // An Internal Cursor used to keep track of the kv index being iterated upon within an internal node
+  type InternalCursor<K, V> = {
+    internal: Internal<K, V>;
+    kvIndex: Nat;
+  };
+
+  func iterScanLimitInternalForward<K, V>(internal: Internal<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat): IntermediateScanResult<K, V> {
+    // keep in mind that the limit has a + 1; (this additional 1 is for the nextKey)
+    var remainingLimit = limit;
+    // result buffer being appended to
+    let resultBuffer: Buffer.Buffer<(K, V)> = Buffer.Buffer(0);
+    // the next key to be returned
+    var nextKey: ?K = null;
+    // seed the initial node stack used to iterate throught the BTree
+    let nodeStack = seedInitialCursorStack<K, V>(internal, compare, lowerBound, upperBound, #fwd, remainingLimit);
+
+    label l while (remainingLimit > 0) {
+      switch(nodeStack.pop()) {
+        case (?#leafCursor(leaf)) { 
+          let intermediateScanResult = iterScanLimitLeafForward(leaf, compare, lowerBound, upperBound, remainingLimit);
+          resultBuffer.append(intermediateScanResult.resultBuffer);
+          remainingLimit := intermediateScanResult.limit;
+          nextKey := intermediateScanResult.nextKey;
+        };
+        case (?#internalCursor(internalCursor)) {
+          let poppedInternalKV = switch(internalCursor.internal.data.kvs[internalCursor.kvIndex]) {
+            case (?kv) { kv };
+            case null { 
+              Debug.trap(
+                "UNREACHABLE_ERROR: file a bug report! In iterScanLimitInternalForward, a popped #internalCursor has an invalid kvIndex. the internal returned has internal node count=" # Nat.toText(internalCursor.internal.data.count) # 
+                " and index=" # Nat.toText(internalCursor.kvIndex)
+              )
+            };
+          };
+          switch(compare(
+            poppedInternalKV.0,
+            upperBound
+          )) {
+            case (#less) { 
+              if (remainingLimit == 1) {
+                return {
+                  resultBuffer;
+                  limit = 0;
+                  nextKey = ?poppedInternalKV.0
+                };
+              };
+
+              resultBuffer.add(poppedInternalKV);
+              remainingLimit -= 1;
+
+              // move the cursor to the kv to the right (greater)
+              let childCursor = {
+                internal = internalCursor.internal;
+                kvIndex = internalCursor.kvIndex + 1;
+              };
+
+              // if not at the end of the internal node's kvs, push the next internal cursor kv to the stack
+              if (internalCursor.kvIndex < (internalCursor.internal.data.count - 1: Nat)) {
+                nodeStack.push(#internalCursor(childCursor));
+              };
+
+              // Then traverse from the new cursor's child predecessor
+              traverse<K, V>(nodeStack, childCursor, compare, lowerBound, upperBound, #fwd, remainingLimit)
+            };
+            // add this kv and then are done
+            case (#equal) { 
+              if (remainingLimit == 1) {
+                return {
+                  resultBuffer;
+                  limit = 0;
+                  nextKey = ?poppedInternalKV.0
+                };
+              }; 
+
+              resultBuffer.add(poppedInternalKV);
+              remainingLimit -= 1;
+              return {
+                resultBuffer;
+                limit = remainingLimit;
+                nextKey = null;
+              };
+            };
+            // have reached the end, we are done
+            case (#greater) {
+              return {
+                resultBuffer;
+                limit = remainingLimit;
+                nextKey = null;
+              };
+            };
+          }
+        };
+        // if no more nodes left in the stack to pop, return the result
+        case null {
+          return {
+            resultBuffer;
+            limit = remainingLimit;
+            nextKey = null;
+          };
+        }
+      } 
+    }; 
+
+    return {
+      resultBuffer;
+      limit = remainingLimit;
+      nextKey;
+    };
+
+    Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitInternalForward, breached the scan loop without first returning a result.");
+  };
+
+  func iterScanLimitInternalReverse<K, V>(internal: Internal<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, limit: Nat): IntermediateScanResult<K, V> {
+    // keep in mind that the limit has a + 1; (this additional 1 is for the nextKey)
+    var remainingLimit = limit;
+    // result buffer being appended to
+    let resultBuffer: Buffer.Buffer<(K, V)> = Buffer.Buffer(0);
+    // the next key to be returned
+    var nextKey: ?K = null;
+    // seed the initial node stack used to iterate throught the BTree
+    let nodeStack = seedInitialCursorStack<K, V>(internal, compare, lowerBound, upperBound, #bwd, remainingLimit);
+
+    label l while (remainingLimit > 0) {
+      // pop the next node "cursor" from the stack
+      switch(nodeStack.pop()) {
+        case (?#leafCursor(leaf)) { 
+          let intermediateScanResult = iterScanLimitLeafReverse(leaf, compare, lowerBound, upperBound, remainingLimit);
+          resultBuffer.append(intermediateScanResult.resultBuffer);
+          remainingLimit := intermediateScanResult.limit;
+          nextKey := intermediateScanResult.nextKey;
+        };
+        case (?#internalCursor(internalCursor)) {
+          let poppedInternalKV = switch(internalCursor.internal.data.kvs[internalCursor.kvIndex]) {
+            case (?kv) { kv };
+            case null { 
+              Debug.trap(
+                "UNREACHABLE_ERROR: file a bug report! In iterScanLimitInternalReverse, a popped #internalCursor has an invalid kvIndex. the internal returned has internal node count=" # Nat.toText(internalCursor.internal.data.count) # 
+                " and index=" # Nat.toText(internalCursor.kvIndex)
+              )
+            };
+          };
+
+          switch(compare(
+            poppedInternalKV.0,
+            lowerBound 
+          )) {
+            case (#greater) { 
+              // if one spot left, the popped kv contains the next key
+              if (remainingLimit == 1) {
+                return {
+                  resultBuffer;
+                  limit = 0;
+                  nextKey = ?poppedInternalKV.0
+                };
+              };
+
+              resultBuffer.add(poppedInternalKV);
+              remainingLimit -= 1;
+              let childCursor = {
+                internal = internalCursor.internal;
+                kvIndex = internalCursor.kvIndex;
+              };
+              // if not at the last kv of this internal node, move the cursor to the left (less) and push it to the stack
+              if (internalCursor.kvIndex > 0) {
+                nodeStack.push(#internalCursor({ childCursor with kvIndex = internalCursor.kvIndex - 1: Nat }));
+              };
+
+              // traverse the childCursor
+              traverse<K, V>(nodeStack, childCursor, compare, lowerBound, upperBound, #bwd, remainingLimit)
+            };
+            // add this kv and then are done
+            case (#equal) { 
+              if (remainingLimit == 1) {
+                return {
+                  resultBuffer;
+                  limit = 0;
+                  nextKey = ?poppedInternalKV.0
+                };
+              }; 
+
+              resultBuffer.add(poppedInternalKV);
+              remainingLimit -= 1;
+              return {
+                resultBuffer;
+                limit = remainingLimit;
+                nextKey = null;
+              };
+            };
+            // have reached the end, we are done
+            case (#less) {
+              return {
+                resultBuffer;
+                limit = remainingLimit;
+                nextKey = null;
+              };
+            };
+          }
+        };
+        // if no more nodes left in the stack to pop, return the result
+        case null {
+          return {
+            resultBuffer;
+            limit = remainingLimit;
+            nextKey = null;
+          };
+        }
+      } 
+    }; 
+
+    return {
+      resultBuffer;
+      limit = remainingLimit;
+      nextKey;
+    };
+
+    Debug.trap("UNREACHABLE_ERROR: file a bug report! In iterScanLimitInternalReverse, breached the scan loop without first returning a result.");
+  };
+
+  func seedInitialCursorStack<K, V>(internal: Internal<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): Stack.Stack<ScanCursor<K, V>> {
+    // stack of internal nodes coupled with the next node index
+    var nodeStack = Stack.Stack<ScanCursor<K, V>>();
+    // the bound to compare against when traversing
+    let traversalBound = switch(dir) {
+      case (#fwd) { lowerBound };
+      case (#bwd) { upperBound };
+    };
+    // child index closest to bound
+    let childIndex = switch(BS.binarySearchNode(internal.data.kvs, compare, traversalBound, internal.data.count)) {
+      // if found the lower bound key, then add the node and return the node stack (to be the next node popped)
+      case (#keyFound(kvIndex)) { 
+        nodeStack.push(#internalCursor({ internal; kvIndex }));
+        return nodeStack;
+      };
+      // otherwise, the index returned is that of the child
+      case (#notFound(childIdx)) { childIdx };
+    };
+
+    var childCursor = {
+      internal;
+      kvIndex = childIndex;
+    };
+
+    switch(dir) {
+      case (#fwd) {
+        // if child index is not the last child, push the internal and next kv index onto the stack (to be popped later)
+        // Note: the child index is equal to the internal node's next kv index in this case, so we can use that here
+        if (childIndex < internal.data.count) {
+          nodeStack.push(#internalCursor(childCursor));
+        };
+      };
+      case (#bwd) {
+        // if child index is not the first child, push the internal and previous kv index onto the stack (to be popped later)
+        // Note: the child index - 1 is equal to the internal node's previous kv index in this case, so we can use that here
+        if (childIndex > 0) {
+          nodeStack.push(#internalCursor({ childCursor with kvIndex = (childIndex - 1: Nat) }));
+        };
+      }
+    };
+
+    // continue traversing the BTree and adding cursors to the stack until the node with the element closest to the lower bound is pushed
+    traverse(nodeStack, childCursor, compare, lowerBound, upperBound, dir, limit);
+    nodeStack;
+  };
+
+  func traverse<K, V>(nodeStack: Stack.Stack<ScanCursor<K, V>>, internalCursor: InternalCursor<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): () {
+    // the current internal node being explored
+    var currentNode = internalCursor.internal;
+    // the kv index of the current internal node being explored
+    var childIndex = internalCursor.kvIndex;
+    // the bound to compare against when traversing
+    let traversalBound = switch(dir) {
+      case (#fwd) { lowerBound };
+      case (#bwd) { upperBound };
+    };
+
+    label l loop {
+      switch(currentNode.children[childIndex]) {
+        // if the child is an internal node, update the current node for the next traversal loop
+        case (?#internal(internalNode)) { currentNode := internalNode };
+        // if the child is a leaf node, push it to the stack and return the stack (reached the end of this path)
+        case (?#leaf(leafNode)) { nodeStack.push(#leafCursor(leafNode)); return };
+        case null {
+          Debug.trap(
+            "UNREACHABLE_ERROR: file a bug report! In BTree.traverse(), encountered a null and invalid childIndex=" # Nat.toText(childIndex) #
+            "for an internal node with count=" # Nat.toText(currentNode.data.count)
+          );
+        };
+      };
+
+      // update the child index (for the next node to traverse)
+      childIndex := switch(BS.binarySearchNode(currentNode.data.kvs, compare, traversalBound, currentNode.data.count)) {
+        // if found the bound key, then add the node and return the node stack (to be the next node popped)
+        case (#keyFound(kvIndex)) { 
+          nodeStack.push(#internalCursor({ internal = currentNode; kvIndex }));
+          return;
+        };
+        // otherwise, the index returned is that of the child
+        case (#notFound(childIdx)) { childIdx };
+      };
+
+      // depending on the order of traversal, push the appropriate internal cursor to the stack
+      // (as long as the cursor is not at the end of that current internal node)
+      switch(dir) {
+        case (#fwd) {
+          // if child index is not the last child, push the internal and next kv index onto the stack (to be popped later)
+          // Note: the child index is equal to the internal node's next kv index in this case, so we can use that here
+          if (childIndex < currentNode.data.count) {
+            nodeStack.push(#internalCursor({
+              internal = currentNode;
+              kvIndex = childIndex;
+            }));
+          };
+        };
+        case (#bwd) {
+          // if child index is not the last child, push the internal and next kv index onto the stack (to be popped later)
+          // Note: the child index is equal to the internal node's next kv index in this case, so we can use that here
+          if (childIndex > 0) {
+            nodeStack.push(#internalCursor({
+              internal = currentNode;
+              kvIndex = childIndex - 1;
+            }));
+          };
+        }
+      }
+    };
+  };
+
 
   // This type is used to signal to the parent calling context what happened in the level below
   type IntermediateInternalDeleteResult<K, V> = {
