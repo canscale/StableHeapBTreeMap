@@ -1,12 +1,11 @@
 # StableHeapBTreeMap
 
-Main memory/heap-based BTree data structures written in Motoko
-
+A functional, heap-based BTree data structure written in Motoko
 
 
 ## API Documentation
 
-TODO
+API documentation for this library can be found at https://canscale.github.io/StableHeapBTreeMap/BTree.html
 
 ## License
 

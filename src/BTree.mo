@@ -130,8 +130,8 @@ module {
 
 
   /// The direction of iteration
-  /// #fwd -> forward (ascending)
-  /// #bwd -> backwards (descending)
+  /// \#fwd -> forward (ascending)
+  /// \#bwd -> backwards (descending)
   public type Direction = { #fwd; #bwd };
 
   /// The object returned from a scan contains:
