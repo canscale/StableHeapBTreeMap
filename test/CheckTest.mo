@@ -142,6 +142,7 @@ let checkTreeDepthIsValidSuite = S.suite("checkTreeDepthIsValid", [
             null,
           ]
         });
+        var size = 11;
         order = 4;
       };
       Check.checkTreeDepthIsValid<Nat, Nat>(t);
@@ -231,6 +232,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null,
             ]
           });
+          var size = 6;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);
@@ -262,6 +264,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null,
             ]
           });
+          var size = 6;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);
@@ -293,6 +296,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null,
             ]
           });
+          var size = 5;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);
@@ -324,6 +328,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null,
             ]
           });
+          var size = 5;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);
@@ -356,6 +361,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null
             ]
           });
+          var size = 6;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);
@@ -387,6 +393,7 @@ let checkDataOrderIsValidSuite = S.suite("checkDataDepthIsValid", [
               null,
             ]
           });
+          var size = 7;
           order = 4;
         };
         Check.checkDataOrderIsValid<Nat, Nat>(t, Nat.compare);

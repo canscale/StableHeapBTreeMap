@@ -46,6 +46,7 @@ let initSuite = S.suite("init", [
           var count = 0;
         }
       });
+      var size = 0;
       order = 4;
     }))
   ),
@@ -58,6 +59,7 @@ let initSuite = S.suite("init", [
           var count = 0;
         }
       });
+      var size = 0;
       order = 8;
     }))
   )
@@ -118,6 +120,7 @@ let insertSuite = S.suite("insert", [
             var count = 1;
           }
         });
+        var size = 1;
         order = 4;
       }))
     ),
@@ -141,6 +144,7 @@ let insertSuite = S.suite("insert", [
             var count = 3;
           }
         });
+        var size = 3;
         order = 6;
       }))
     ),
@@ -164,6 +168,7 @@ let insertSuite = S.suite("insert", [
             var count = 4;
           }
         });
+        var size = 4;
         order = 6;
       }))
     ),
@@ -180,6 +185,7 @@ let insertSuite = S.suite("insert", [
             var count = 4;
           }
         });
+        var size = 4;
         order = 6;
       }))
     ),
@@ -196,6 +202,7 @@ let insertSuite = S.suite("insert", [
             var count = 4;
           }
         });
+        var size = 4;
         order = 6;
       }))
     ),
@@ -212,6 +219,7 @@ let insertSuite = S.suite("insert", [
             var count = 5;
           }
         });
+        var size = 5;
         order = 6;
       }))
     ),
@@ -244,6 +252,7 @@ let insertSuite = S.suite("insert", [
             null
           ]
         });
+        var size = 4;
         order = 4;
       }))
     ),
@@ -277,6 +286,7 @@ let insertSuite = S.suite("insert", [
             null
           ]
         });
+        var size = 5;
         order = 5;
       }))
     ),
@@ -311,6 +321,7 @@ let insertSuite = S.suite("insert", [
             null,
           ]
         });
+        var size = 4;
         order = 4;
       }))
     ),
@@ -343,6 +354,7 @@ let insertSuite = S.suite("insert", [
             null,
           ]
         });
+        var size = 5;
         order = 4;
       }))
     ),
@@ -375,6 +387,7 @@ let insertSuite = S.suite("insert", [
             null,
           ]
         });
+        var size = 5;
         order = 4;
       }))
     ),
@@ -412,6 +425,7 @@ let insertSuite = S.suite("insert", [
             null,
           ]
         });
+        var size = 6;
         order = 4;
       }))
     ),
@@ -454,6 +468,7 @@ let insertSuite = S.suite("insert", [
             }),
           ]
         });
+        var size = 9;
         order = 4;
       }))
     ),
@@ -496,6 +511,7 @@ let insertSuite = S.suite("insert", [
             }),
           ]
         });
+        var size = 10;
         order = 4;
       }))
     ),
@@ -566,6 +582,7 @@ let insertSuite = S.suite("insert", [
 
           ]
         });
+        var size = 11;
         order = 4;
       }))
     ),
@@ -636,10 +653,11 @@ let insertSuite = S.suite("insert", [
 
           ]
         });
+        var size = 11;
         order = 4;
       }))
     ),
-    S.test("inserting an element that does not exist into that promotes and element from a full internal into a root internal with space, hitting case 2 of splitChildrenInTwoWithRebalances",
+    S.test("inserting an element that does not exist into that promotes an element from a full internal into a root internal with space, hitting case 2 of splitChildrenInTwoWithRebalances",
       do {
         let t = quickCreateBTreeWithKVPairs(4, [2, 10, 20, 8, 5, 7, 15, 25, 40, 3, 4, 50, 60, 70, 80, 90, 100, 110, 120]);
         let _ = BT.insert<Nat, Nat>(t, Nat.compare, 130, 130);
@@ -732,6 +750,7 @@ let insertSuite = S.suite("insert", [
 
           ]
         });
+        var size = 20;
         order = 4;
       }))
     ),
@@ -802,6 +821,7 @@ let insertSuite = S.suite("insert", [
 
           ]
         });
+        var size = 12;
         order = 4;
       }))
     ),
@@ -831,6 +851,7 @@ let deleteSuite = S.suite("delete", [
             var count = 2;
           }
         });
+        var size = 2;
         order = 4;
       }))
     ),
@@ -870,6 +891,7 @@ let deleteSuite = S.suite("delete", [
               null
             ]
           });
+          var size = 3;
           order = 4;
         }))
       ),
@@ -903,6 +925,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 3;
             order = 4;
           }))
         ),
@@ -941,6 +964,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 5;
             order = 4;
           }))
         ),
@@ -979,6 +1003,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 5;
             order = 4;
           }))
         ),
@@ -1018,6 +1043,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 5;
             order = 4;
           }))
         ),
@@ -1053,6 +1079,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 4;
             order = 4;
           }))
         ),
@@ -1134,6 +1161,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 12;
             order = 4;
           }))
         ),
@@ -1169,6 +1197,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 4;
             order = 4;
           }))
         ),
@@ -1239,6 +1268,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 13;
             order = 4;
           }))
         ),
@@ -1274,6 +1304,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 4;
             order = 4;
           }))
         ),
@@ -1295,6 +1326,7 @@ let deleteSuite = S.suite("delete", [
                 var count = 2;
               };
             });
+            var size = 2;
             order = 4;
           }))
         ),
@@ -1366,6 +1398,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 12;
             order = 4;
           }))
         ),
@@ -1449,6 +1482,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 22;
             order = 6;
           }))
         ),
@@ -1530,6 +1564,7 @@ let deleteSuite = S.suite("delete", [
                 null
               ]
             });
+            var size = 24;
             order = 6;
           }))
         ),
@@ -1566,6 +1601,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 3;
         order = 4;
       }))
     ),
@@ -1604,6 +1640,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 6;
         order = 4;
       }))
     ),
@@ -1643,6 +1680,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 5;
         order = 4;
       }))
     ),
@@ -1660,6 +1698,7 @@ let deleteSuite = S.suite("delete", [
             var count = 4;
           };
         });
+        var size = 4;
         order = 6;
       }))
     ),
@@ -1755,6 +1794,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 21;
         order = 4;
       }))
     ),
@@ -1845,6 +1885,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 16;
         order = 4;
       }))
     ),
@@ -1935,6 +1976,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 16;
         order = 4;
       }))
     ),
@@ -1978,6 +2020,7 @@ let deleteSuite = S.suite("delete", [
             null
           ]
         });
+        var size = 6;
         order = 4;
       }))
     ),
@@ -2034,6 +2077,7 @@ let deleteSuite = S.suite("delete", [
             null,
           ]
         });
+        var size = 18;
         order = 6;
       }))
     ),

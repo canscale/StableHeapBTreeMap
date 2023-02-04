@@ -35,10 +35,10 @@ module {
           var count = 0;
         };
       }); 
+      var size = 0;
       order = btreeOrder;
     }
   };
-
   
   /// Allows one to quickly create a BTree using an array of key value pairs
   public func createBTreeWithKVPairs<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
@@ -48,6 +48,9 @@ module {
     });
     t;
   };
+
+  /// Get the current count of key-value pairs present in the BTree
+  public func size<K, V>(tree: BTree<K, V>): Nat { tree.size };
 
 
   /// Retrieves the value corresponding to the key of BTree if it exists
@@ -67,7 +70,14 @@ module {
     };
 
     switch(insertResult) {
-      case (#insert(ov)) { ov };
+      case (#insert(ov)) {
+        switch(ov) {
+          // if inserted a value that was not previously there, increment the tree size counter
+          case null { tree.size += 1 };
+          case _ {};
+        };
+        ov
+      };
       case (#promote({ kv; leftChild; rightChild; })) {
         tree.root := #internal({
           data = {
@@ -83,6 +93,8 @@ module {
             else { null }
           });
         });
+        // promotion always comes from inserting a new element, so increment the tree size counter
+        tree.size += 1;
 
         null
       }
@@ -99,14 +111,14 @@ module {
           case (#keyFound(deleteIndex)) { 
             leafNode.data.count -= 1;
             let (_, deletedValue) = AU.deleteAndShiftValuesOver<(K, V)>(leafNode.data.kvs, deleteIndex);
+            tree.size -= 1;
             ?deletedValue
           };
           case _ { null }
         }
-
       };
       case (#internal(internalNode)) { 
-        switch(internalDeleteHelper(internalNode, tree.order, compare, key, false)) {
+        let deletedValueResult = switch(internalDeleteHelper(internalNode, tree.order, compare, key, false)) {
           case (#delete(value)) { value };
           case (#mergeChild({ internalChild; deletedValue })) {
             if (internalChild.data.count > 0) {
@@ -122,9 +134,15 @@ module {
             };
             deletedValue
           }
-        }
-      }
+        };
 
+        switch(deletedValueResult) {
+          // if deleted a value from the BTree, decrement the size
+          case (?deletedValue) { tree.size -= 1 };
+          case null {}
+        };
+        deletedValueResult
+      }
     }
   };
 
@@ -1176,6 +1194,7 @@ module {
   public func toText<K, V>(t: BTree<K, V>, keyToText: K -> Text, valueToText: V -> Text): Text {
     var textOutput = "BTree={";
     textOutput #= "root=" # rootToText<K, V>(t.root, keyToText, valueToText) # "; ";
+    textOutput #= "size=" # Nat.toText(t.size) # "; ";
     textOutput #= "order=" # Nat.toText(t.order) # "; ";
     textOutput # "}";
   };
@@ -1188,7 +1207,7 @@ module {
     keyEquals: (K, K) -> Bool,
     valueEquals: (V, V) -> Bool
   ): Bool {
-    if (t1.order != t2.order) return false;
+    if (t1.order != t2.order or t1.size != t2.size) return false;
 
     nodeEquals(t1.root, t2.root, keyEquals, valueEquals);
   };
