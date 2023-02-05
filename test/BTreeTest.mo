@@ -3883,6 +3883,120 @@ let entriesSuite = S.suite("entries", [
   ]),
 ]);
 
+let minSuite = S.suite("min", [
+  S.test("if the tree is empty, returns None",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      BT.min(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      null
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      BT.min(t)
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(1, 1),
+    ))
+  ),
+  S.test("if the tree root is a completely full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+      BT.min(t)
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(1, 1),
+    ))
+  ),
+  S.test("if the tree root is an internal node with multiple levels",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+      BT.min(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(1, 1),
+    ))
+  ),
+  S.test("if the tree root is an internal node with multiple levels and some deletion",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 1);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 2);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 3);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 4);
+      BT.min(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(5, 5),
+    ))
+  ),
+]);
+
+let maxSuite = S.suite("max", [
+  S.test("if the tree is empty, returns None",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      BT.max(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      null
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      BT.max(t)
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(2, 2),
+    ))
+  ),
+  S.test("if the tree root is a completely full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+      BT.max(t)
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(3, 3),
+    ))
+  ),
+  S.test("if the tree root is an internal node with multiple levels",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+      BT.max(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(22, 22),
+    ))
+  ),
+  S.test("if the tree root is an internal node with multiple levels and some deletion",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 22);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 21);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 20);
+      ignore BT.delete<Nat, Nat>(t, Nat.compare, 19);
+      BT.max(t);
+    },
+    M.equals(T.optional<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      ?(18, 18),
+    ))
+  ),
+]);
+
 S.run(S.suite("BTree",
   [
     initSuite,
@@ -3892,6 +4006,8 @@ S.run(S.suite("BTree",
     deleteSuite,
     scanLimitSuite,
     toArraySuite,
-    entriesSuite
+    entriesSuite,
+    minSuite,
+    maxSuite,
   ]
 ));

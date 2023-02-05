@@ -210,6 +210,22 @@ module {
     }
   };
 
+  /// Returns the minimum key in a BTree with its associated value. If the BTree is empty, returns null
+  public func min<K, V>(tree: BTree<K, V>): ?(K, V) {
+    switch(tree.root) {
+      case (#leaf(leafNode)) { getLeafMin<K, V>(leafNode) };
+      case (#internal(internalNode)) { getInternalMin<K, V>(internalNode) };
+    }
+  };
+
+  /// Returns the maximum key in a BTree with its associated value. If the BTree is empty, returns null
+  public func max<K, V>(tree: BTree<K, V>): ?(K, V) {
+    switch(tree.root) {
+      case (#leaf(leafNode)) { getLeafMax<K, V>(leafNode) };
+      case (#internal(internalNode)) { getInternalMax<K, V>(internalNode) };
+    }
+  };
+
   /// Returns an ascending order BTree iterator
   public func entries<K, V>(t: BTree<K, V>): Iter.Iter<(K, V)> {
     switch(t.root) {
@@ -290,6 +306,58 @@ module {
   ///////////////////////////////////////
   /* Internal Library Helper functions*/
   /////////////////////////////////////
+
+  // gets the max key value pair in the leaf node
+  func getLeafMin<K, V>({ data }: Leaf<K, V>): ?(K, V) {
+    if (data.count == 0) null else { data.kvs[0] }
+  };
+
+  // gets the min key value pair in the internal node
+  func getInternalMin<K, V>(internal: Internal<K, V>): ?(K, V) {
+    var currentInternal = internal;
+    var minKV: ?(K, V) = null;
+    label l loop {
+      let child = switch(currentInternal.children[0]) {
+        case (?child) { child };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.internalmin(), null child error") };
+      };
+
+      switch(child) {
+        case (#leaf(leafNode)) {
+          minKV := getLeafMin<K, V>(leafNode);
+          break l
+        };
+        case (#internal(internalNode)) { currentInternal := internalNode; };
+      }
+    };
+    minKV;
+  };
+
+  // gets the max key value pair in the leaf node
+  func getLeafMax<K, V>({ data }: Leaf<K, V>): ?(K, V) {
+    if (data.count == 0) null else { data.kvs[data.count - 1] }
+  };
+
+  // gets the max key value pair in the internal node
+  func getInternalMax<K, V>(internal: Internal<K, V>): ?(K, V) {
+    var currentInternal = internal;
+    var maxKV: ?(K, V) = null;
+    label l loop {
+      let child = switch(currentInternal.children[currentInternal.data.count]) {
+        case (?child) { child };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.internalGetMax(), null child error") };
+      };
+
+      switch(child) {
+        case (#leaf(leafNode)) {
+          maxKV := getLeafMax<K, V>(leafNode);
+          break l
+        };
+        case (#internal(internalNode)) { currentInternal := internalNode; };
+      }
+    };
+    maxKV;
+  };
 
   // Appends all kvs in the leaf to the entriesAccumulator buffer 
   func appendLeafKVs<K, V>({ data }: Leaf<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
