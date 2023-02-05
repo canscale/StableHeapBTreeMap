@@ -55,6 +55,11 @@ module {
     t
   };
 
+  /// Allows one to quickly create a BTree from an Buffer of key value pairs
+  ///
+  /// The Buffer class type returned is described in the Motoko-base library here:
+  /// https://github.com/dfinity/motoko-base/blob/master/src/Buffer.mo
+  /// It does **not** persist to stable memory
   public func fromBuffer<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: Buffer.Buffer<(K, V)>): BTree<K, V> {
     let t = init<K, V>(?order);
     for ((k, v) in kvPairs.vals()) {
@@ -316,8 +321,9 @@ module {
 
   /// Returns a buffer of all the key-value pairs in the BTree.
   ///
-  /// The Buffer class type is not stable returned is described in the Motoko-base library here:
-  /// https://github.com/dfinity/motoko-base/blob/6557fbefc9a03afff8e0c84591ea78190eb6f723/src/Buffer.mo#L67
+  /// The Buffer class type returned is described in the Motoko-base library here:
+  /// https://github.com/dfinity/motoko-base/blob/master/src/Buffer.mo
+  /// It does **not** persist to stable memory
   ///
   /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
   public func toBuffer<K, V>(t: BTree<K, V>): Buffer.Buffer<(K, V)> {
