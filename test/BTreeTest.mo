@@ -17,7 +17,7 @@ func testableNatBTree(t: BT.BTree<Nat, Nat>): T.TestableItem<BT.BTree<Nat, Nat>>
 func quickCreateBTreeWithKVPairs(order: Nat, keyValueDup: [Nat]): BT.BTree<Nat, Nat> {
   let kvPairs = Array.map<Nat, (Nat, Nat)>(keyValueDup, func(k) { (k, k) });
 
-  BT.createBTreeWithKVPairs<Nat, Nat>(order, Nat.compare, kvPairs);
+  BT.fromArray<Nat, Nat>(order, Nat.compare, kvPairs);
 };
 
 func quickCreateNatResultSet(start: Nat, end: Nat): [(Nat, Nat)] {

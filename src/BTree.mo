@@ -21,7 +21,7 @@ module {
   public type Leaf<K, V> = Types.Leaf<K, V>;
   public type Data<K, V> = Types.Data<K, V>;
 
-  // Initializes an empty BTree. By default, set the BTree to have order 8, and enforce the the order be greater than 4, but lower than 512
+  /// Initializes an empty BTree. By default, set the BTree to have order 8, and enforce the the order be greater than 4, but lower than 512
   public func init<K, V>(order: ?Nat): BTree<K, V> {
     let btreeOrder = switch(order) {
       case null { 8 };
@@ -44,18 +44,27 @@ module {
     }
   };
   
-  /// Allows one to quickly create a BTree using an array of key value pairs
-  public func createBTreeWithKVPairs<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
+  /// Allows one to quickly create a BTree from an array of key value pairs
+  public func fromArray<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
     let t = init<K, V>(?order);
     let _ = Array.map<(K, V), ?V>(kvPairs, func(pair) {
-      insert<K, V>(t, compare, pair.0, pair.1)
+      insert<K, V>(t, compare, pair.0, pair.1);
     });
-    t;
+
+    t
+  };
+
+  public func fromBuffer<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: Buffer.Buffer<(K, V)>): BTree<K, V> {
+    let t = init<K, V>(?order);
+    for ((k, v) in kvPairs.vals()) {
+      ignore insert<K, V>(t, compare, k, v);
+    };
+
+    t
   };
 
   /// Get the current count of key-value pairs present in the BTree
   public func size<K, V>(tree: BTree<K, V>): Nat { tree.size };
-
 
   /// Retrieves the value corresponding to the key of BTree if it exists
   public func get<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K): ?V {
@@ -65,6 +74,13 @@ module {
     }
   };
 
+  /// Returns a boolean representing if the BTree contains the provided key or not
+  public func has<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K): Bool {
+    switch(get<K, V>(tree, compare, key)) {
+      case null { false };
+      case (?v) { true };
+    }
+  };
 
   /// Inserts an element into a BTree
   public func insert<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, value: V): ?V {
