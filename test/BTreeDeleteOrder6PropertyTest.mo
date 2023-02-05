@@ -49,6 +49,7 @@ let btreePropertyTests = S.suite("check validity of mass insertion/deletion", [
             var count = 0;
           }
         });
+        var size = 0;
         order = 6;
       }))
     ),
@@ -87,6 +88,7 @@ let btreePropertyTests = S.suite("check validity of mass insertion/deletion", [
             var count = 0;
           }
         });
+        var size = 0;
         order = 6;
       }))
     ),
@@ -121,6 +123,7 @@ let btreePropertyTests = S.suite("check validity of mass insertion/deletion", [
             var count = 0;
           }
         });
+        var size = 0;
         order = 6;
       }))
     ),

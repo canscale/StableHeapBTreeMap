@@ -21,6 +21,7 @@ module {
 
   public type BTree<K, V> = {
     var root: Node<K, V>;
+    var size: Nat;
     order: Nat;
   };
 }
