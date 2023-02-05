@@ -62,7 +62,35 @@ let initSuite = S.suite("init", [
       var size = 0;
       order = 8;
     }))
+  ),
+  /* Comment out to test that these tests trap on BTree initialization
+  S.test("if the order provided is less than 4, traps",
+    BT.init<Nat, Nat>(?3),
+    M.equals(testableNatBTree({
+      var root = #leaf({
+        data = {
+          kvs = [var null, null];
+          var count = 0;
+        }
+      });
+      var size = 0;
+      order = 3;
+    }))
+  ),
+  S.test("if the order provided is greater than 512, traps",
+    BT.init<Nat, Nat>(?513),
+    M.equals(testableNatBTree({
+      var root = #leaf({
+        data = {
+          kvs = [var null, null];
+          var count = 0;
+        }
+      });
+      var size = 0;
+      order = 512;
+    }))
   )
+  */
 ]);
 
 let getSuite = S.suite("get", [
