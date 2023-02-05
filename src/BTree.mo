@@ -127,6 +127,44 @@ module {
     };
   };
 
+  /// Applies a function to the value of an existing key of a BTree
+  /// If the element does not yet exist in the BTree it creates a new key and value according to the result of passing null to the updateFunction
+  public func update<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): ?V {
+    let updateResult = switch(tree.root) {
+      case (#leaf(leafNode)) { leafUpdateHelper<K, V>(leafNode, tree.order, compare, key, updateFunction) };
+      case (#internal(internalNode)) { internalUpdateHelper<K, V>(internalNode, tree.order, compare, key, updateFunction) };
+    };
+
+    switch(updateResult) {
+      case (#insert(ov)) { 
+        switch(ov) {
+          case null { tree.size := tree.size + 1 };
+          case _ {};
+        };
+        ov
+      };
+      case (#promote({ kv; leftChild; rightChild; })) {
+        tree.root := #internal({
+          data = {
+            kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
+              if (i == 0) { ?kv }
+              else { null }
+            });
+            var count = 1;
+          };
+          children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
+            if (i == 0) { ?leftChild }
+            else if (i == 1) { ?rightChild }
+            else { null }
+          });
+        });
+        // promotion always comes from inserting a new element, so increment the tree size counter
+        tree.size += 1;
+
+        null
+      }
+    };
+  };
 
   /// Deletes an element from a BTree
   public func delete<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K): ?V {
@@ -177,6 +215,166 @@ module {
     switch(t.root) {
       case (#leaf(leafNode)) { return leafEntries(leafNode) };
       case (#internal(internalNode)) { internalEntries(internalNode) };
+    };
+  };
+
+  /// Returns an array of all the key-value pairs in the BTree
+  ///
+  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
+  public func toArray<K, V>(t: BTree<K, V>): [(K, V)] {
+    Buffer.toArray<(K, V)>(toBuffer<K, V>(t));
+  };
+
+  /// Returns a buffer of all the key-value pairs in the BTree.
+  ///
+  /// The Buffer class type returned is described in the Motoko-base library here:
+  /// https://github.com/dfinity/motoko-base/blob/master/src/Buffer.mo
+  /// It does **not** persist to stable memory
+  ///
+  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
+  public func toBuffer<K, V>(t: BTree<K, V>): Buffer.Buffer<(K, V)> {
+    // initialize the accumulator buffer to have the same size as the BTree (to avoid resizing)
+    let entriesAccumulator = Buffer.Buffer<(K, V)>(t.size);
+    switch(t.root) {
+      case (#leaf(leafNode)) { appendLeafKVs(leafNode, entriesAccumulator) };
+      case (#internal(internalNode)) { appendInternalKVs(internalNode, entriesAccumulator) };
+    };
+    entriesAccumulator;
+  };
+
+
+  /// The direction of iteration
+  /// \#fwd -> forward (ascending)
+  /// \#bwd -> backwards (descending)
+  public type Direction = { #fwd; #bwd };
+
+  /// The object returned from a scan contains:
+  /// * results - a key value array of all results found (within the bounds and limit provided)
+  /// * nextKey - an optional next key if there exist more results than the limit provided within the given bounds
+  public type ScanLimitResult<K, V> = {
+    results: [(K, V)];
+    nextKey: ?K;
+  };
+
+  /// Performs a in-order scan of the Red-Black Tree between the provided key bounds, returning a number of matching entries in the direction specified (ascending/descending) limited by the limit parameter specified in an array formatted as (K, V) for each entry
+  ///
+  /// * tree - the BTree being scanned
+  /// * compare - the comparison function used to compare (in terms of order) the provided bounds against the keys in the BTree
+  /// * lowerBound - the lower bound used in the scan
+  /// * upperBound - the upper bound used in the scan
+  /// * dir - the direction of the scan
+  /// * limit - the maximum possible number of items to scan (that are between the lower and upper bounds) before returning
+  public func scanLimit<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
+    if (limit == 0) { return { results = []; nextKey = null }};
+
+    switch(compare(lowerBound, upperBound)) {
+      // return empty array if lower bound is greater than upper bound      
+      case (#greater) {{ results = []; nextKey = null }};
+      // return the single entry if exists if the lower and upper bounds are equivalent
+      case (#equal) { 
+        switch(get<K, V>(tree, compare, lowerBound)) {
+          case null {{ results = []; nextKey = null }};
+          case (?value) {{ results = [(lowerBound, value)]; nextKey = null }};
+        }
+      };
+      case (#less) { 
+        // add 1 to limit to allow additional space for next key without worrying about Nat underflow
+        let limitPlusNextKey = limit + 1;
+        let { resultBuffer; nextKey } = iterScanLimit<K, V>(tree.root, compare, lowerBound, upperBound, dir, limitPlusNextKey);
+        { results = Buffer.toArray(resultBuffer); nextKey = nextKey };
+      }
+    }
+  };
+
+
+  ///////////////////////////////////////
+  /* Internal Library Helper functions*/
+  /////////////////////////////////////
+
+  // Appends all kvs in the leaf to the entriesAccumulator buffer 
+  func appendLeafKVs<K, V>({ data }: Leaf<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    var i = 0;
+    while (i < data.count) {
+      switch(data.kvs[i]) {
+        case (?kv) { entriesAccumulator.add(kv) };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In appendLeafEntries data.kvs[i] is null with data.count=" # Nat.toText(data.count) # " and i=" # Nat.toText(i)) };
+      };
+      i += 1;
+    };
+  };
+
+  // Iterates through the entire internal node, appending all kvs to the entriesAccumulator buffer
+  func appendInternalKVs<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    // Holds an internal node stack cursor for iterating through the BTree
+    let internalNodeStack = initializeInternalNodeStack(internal, entriesAccumulator);
+    var internalCursor = internalNodeStack.pop();
+
+    label l loop {
+      switch(internalCursor) {
+        case (?{ internal; kvIndex }) {
+          switch(internal.data.kvs[kvIndex]) {
+            case (?kv) { entriesAccumulator.add(kv) };
+            case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries internal.data.kvs[kvIndex] is null with internal.data.count=" # Nat.toText(internal.data.count) # " and kvIndex=" # Nat.toText(kvIndex)) };
+          };
+          let lastKV = (internal.data.count - 1: Nat);
+          if (kvIndex > lastKV) {
+            Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries kvIndex=" # Nat.toText(kvIndex) # " is greater than internal.data.count=" # Nat.toText(internal.data.count))
+          };
+
+          // push the new internalCursor onto the stack, and traverse the left child of the internal node
+          // increment the kvIndex of the internalCursor,
+          let nextCursor = { internal = internal; kvIndex = kvIndex + 1 };
+          // if the kvIndex is less than the number of keys in the internal node, push the new internalCursor onto the stack,
+          if (kvIndex < lastKV) {
+            internalNodeStack.push(nextCursor);
+          };
+
+          // traverse the next child's min subtree and push the resulting internal cursors to the stack
+          traverseInternalMinSubtree(internalNodeStack, nextCursor, entriesAccumulator);
+          // pop the next internalCursor off the stack and continue
+          internalCursor := internalNodeStack.pop();
+        };
+        // nothing left in the internalNodeStack, signalling that we have traversed the entire BTree and added all kv pairs to the entriesAccumulator
+        case null { return };
+      };
+    }
+  };
+
+  func initializeInternalNodeStack<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): Stack.Stack<InternalCursor<K, V>> {
+    let internalNodeStack = Stack.Stack<InternalCursor<K, V>>();
+    let internalCursor: InternalCursor<K, V> = {
+      internal;
+      kvIndex = 0;
+    };
+    internalNodeStack.push(internalCursor);
+    traverseInternalMinSubtree(internalNodeStack, internalCursor, entriesAccumulator);
+
+    internalNodeStack;
+  };
+
+  // traverse the min subtree of the current internal cursor, passing each new element to the node cursor stack
+  // once a leaf node is hit, appends all the leaf entries to the entriesAccumulator buffer and returns
+  func traverseInternalMinSubtree<K, V>(internalNodeStack: Stack.Stack<InternalCursor<K, V>>, internalCursor: InternalCursor<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    var currentNode = internalCursor.internal;
+    var childIndex = internalCursor.kvIndex;
+    label l loop {
+      switch(currentNode.children[childIndex]) {
+        // If hit a leaf, have hit the bottom of the min subtree, so can just append all leaf entries to the accumulator and return (no need to push to the stack)
+        case (?#leaf(leafChild)) {
+          appendLeafKVs(leafChild, entriesAccumulator);
+          return;
+        };
+        // If hit an internal node, update the currentNode and childIndex, and push the min child index of that internal node onto the stack
+        case (?#internal(internalNode)) {
+          currentNode := internalNode;
+          childIndex := 0;
+          internalNodeStack.push({
+            internal = internalNode;
+            kvIndex = childIndex;
+          });
+        };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In dfsTraverse, currentNode.children[childIndex] is null with currentNode.data.count=" # Nat.toText(currentNode.data.count) # " and childIndex=" # Nat.toText(childIndex)) };
+      };
     };
   };
 
@@ -312,200 +510,7 @@ module {
     }
   };
 
-  /// Returns an array of all the key-value pairs in the BTree
-  ///
-  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
-  public func toArray<K, V>(t: BTree<K, V>): [(K, V)] {
-    Buffer.toArray<(K, V)>(toBuffer<K, V>(t));
-  };
 
-  /// Returns a buffer of all the key-value pairs in the BTree.
-  ///
-  /// The Buffer class type returned is described in the Motoko-base library here:
-  /// https://github.com/dfinity/motoko-base/blob/master/src/Buffer.mo
-  /// It does **not** persist to stable memory
-  ///
-  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
-  public func toBuffer<K, V>(t: BTree<K, V>): Buffer.Buffer<(K, V)> {
-    // initialize the accumulator buffer to have the same size as the BTree (to avoid resizing)
-    let entriesAccumulator = Buffer.Buffer<(K, V)>(t.size);
-    switch(t.root) {
-      case (#leaf(leafNode)) { appendLeafKVs(leafNode, entriesAccumulator) };
-      case (#internal(internalNode)) { appendInternalKVs(internalNode, entriesAccumulator) };
-    };
-    entriesAccumulator;
-  };
-
-  // Appends all kvs in the leaf to the entriesAccumulator buffer 
-  func appendLeafKVs<K, V>({ data }: Leaf<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
-    var i = 0;
-    while (i < data.count) {
-      switch(data.kvs[i]) {
-        case (?kv) { entriesAccumulator.add(kv) };
-        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In appendLeafEntries data.kvs[i] is null with data.count=" # Nat.toText(data.count) # " and i=" # Nat.toText(i)) };
-      };
-      i += 1;
-    };
-  };
-
-  // Iterates through the entire internal node, appending all kvs to the entriesAccumulator buffer
-  func appendInternalKVs<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
-    // Holds an internal node stack cursor for iterating through the BTree
-    let internalNodeStack = initializeInternalNodeStack(internal, entriesAccumulator);
-    var internalCursor = internalNodeStack.pop();
-
-    label l loop {
-      switch(internalCursor) {
-        case (?{ internal; kvIndex }) {
-          switch(internal.data.kvs[kvIndex]) {
-            case (?kv) { entriesAccumulator.add(kv) };
-            case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries internal.data.kvs[kvIndex] is null with internal.data.count=" # Nat.toText(internal.data.count) # " and kvIndex=" # Nat.toText(kvIndex)) };
-          };
-          let lastKV = (internal.data.count - 1: Nat);
-          if (kvIndex > lastKV) {
-            Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries kvIndex=" # Nat.toText(kvIndex) # " is greater than internal.data.count=" # Nat.toText(internal.data.count))
-          };
-
-          // push the new internalCursor onto the stack, and traverse the left child of the internal node
-          // increment the kvIndex of the internalCursor,
-          let nextCursor = { internal = internal; kvIndex = kvIndex + 1 };
-          // if the kvIndex is less than the number of keys in the internal node, push the new internalCursor onto the stack,
-          if (kvIndex < lastKV) {
-            internalNodeStack.push(nextCursor);
-          };
-
-          // traverse the next child's min subtree and push the resulting internal cursors to the stack
-          traverseInternalMinSubtree(internalNodeStack, nextCursor, entriesAccumulator);
-          // pop the next internalCursor off the stack and continue
-          internalCursor := internalNodeStack.pop();
-        };
-        // nothing left in the internalNodeStack, signalling that we have traversed the entire BTree and added all kv pairs to the entriesAccumulator
-        case null { return };
-      };
-    }
-  };
-
-  func initializeInternalNodeStack<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): Stack.Stack<InternalCursor<K, V>> {
-    let internalNodeStack = Stack.Stack<InternalCursor<K, V>>();
-    let internalCursor: InternalCursor<K, V> = {
-      internal;
-      kvIndex = 0;
-    };
-    internalNodeStack.push(internalCursor);
-    traverseInternalMinSubtree(internalNodeStack, internalCursor, entriesAccumulator);
-
-    internalNodeStack;
-  };
-
-  // traverse the min subtree of the current internal cursor, passing each new element to the node cursor stack
-  // once a leaf node is hit, appends all the leaf entries to the entriesAccumulator buffer and returns
-  func traverseInternalMinSubtree<K, V>(internalNodeStack: Stack.Stack<InternalCursor<K, V>>, internalCursor: InternalCursor<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
-    var currentNode = internalCursor.internal;
-    var childIndex = internalCursor.kvIndex;
-    label l loop {
-      switch(currentNode.children[childIndex]) {
-        // If hit a leaf, have hit the bottom of the min subtree, so can just append all leaf entries to the accumulator and return (no need to push to the stack)
-        case (?#leaf(leafChild)) {
-          appendLeafKVs(leafChild, entriesAccumulator);
-          return;
-        };
-        // If hit an internal node, update the currentNode and childIndex, and push the min child index of that internal node onto the stack
-        case (?#internal(internalNode)) {
-          currentNode := internalNode;
-          childIndex := 0;
-          internalNodeStack.push({
-            internal = internalNode;
-            kvIndex = childIndex;
-          });
-        };
-        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In dfsTraverse, currentNode.children[childIndex] is null with currentNode.data.count=" # Nat.toText(currentNode.data.count) # " and childIndex=" # Nat.toText(childIndex)) };
-      };
-    };
-  };
-
-
-  /// Applies a function to the value of an existing key of a BTree
-  /// If the element does not yet exist in the BTree it creates a new key and value according to the result of passing null to the updateFunction
-  public func update<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): ?V {
-    let updateResult = switch(tree.root) {
-      case (#leaf(leafNode)) { leafUpdateHelper<K, V>(leafNode, tree.order, compare, key, updateFunction) };
-      case (#internal(internalNode)) { internalUpdateHelper<K, V>(internalNode, tree.order, compare, key, updateFunction) };
-    };
-
-    switch(updateResult) {
-      case (#insert(ov)) { 
-        switch(ov) {
-          case null { tree.size := tree.size + 1 };
-          case _ {};
-        };
-        ov
-      };
-      case (#promote({ kv; leftChild; rightChild; })) {
-        tree.root := #internal({
-          data = {
-            kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) {
-              if (i == 0) { ?kv }
-              else { null }
-            });
-            var count = 1;
-          };
-          children = Array.tabulateVar<?(Node<K, V>)>(tree.order, func(i) {
-            if (i == 0) { ?leftChild }
-            else if (i == 1) { ?rightChild }
-            else { null }
-          });
-        });
-        // promotion always comes from inserting a new element, so increment the tree size counter
-        tree.size += 1;
-
-        null
-      }
-    };
-  };
-
-
-  /// The direction of iteration
-  /// \#fwd -> forward (ascending)
-  /// \#bwd -> backwards (descending)
-  public type Direction = { #fwd; #bwd };
-
-  /// The object returned from a scan contains:
-  /// * results - a key value array of all results found (within the bounds and limit provided)
-  /// * nextKey - an optional next key if there exist more results than the limit provided within the given bounds
-  public type ScanLimitResult<K, V> = {
-    results: [(K, V)];
-    nextKey: ?K;
-  };
-
-  /// Performs a in-order scan of the Red-Black Tree between the provided key bounds, returning a number of matching entries in the direction specified (ascending/descending) limited by the limit parameter specified in an array formatted as (K, V) for each entry
-  ///
-  /// * tree - the BTree being scanned
-  /// * compare - the comparison function used to compare (in terms of order) the provided bounds against the keys in the BTree
-  /// * lowerBound - the lower bound used in the scan
-  /// * upperBound - the upper bound used in the scan
-  /// * dir - the direction of the scan
-  /// * limit - the maximum possible number of items to scan (that are between the lower and upper bounds) before returning
-  public func scanLimit<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, lowerBound: K, upperBound: K, dir: Direction, limit: Nat): ScanLimitResult<K, V> {
-    if (limit == 0) { return { results = []; nextKey = null }};
-
-    switch(compare(lowerBound, upperBound)) {
-      // return empty array if lower bound is greater than upper bound      
-      case (#greater) {{ results = []; nextKey = null }};
-      // return the single entry if exists if the lower and upper bounds are equivalent
-      case (#equal) { 
-        switch(get<K, V>(tree, compare, lowerBound)) {
-          case null {{ results = []; nextKey = null }};
-          case (?value) {{ results = [(lowerBound, value)]; nextKey = null }};
-        }
-      };
-      case (#less) { 
-        // add 1 to limit to allow additional space for next key without worrying about Nat underflow
-        let limitPlusNextKey = limit + 1;
-        let { resultBuffer; nextKey } = iterScanLimit<K, V>(tree.root, compare, lowerBound, upperBound, dir, limitPlusNextKey);
-        { results = Buffer.toArray(resultBuffer); nextKey = nextKey };
-      }
-    }
-  };
 
   // Intermediate result used during the scanning of different BTree node types
   type IntermediateScanResult<K, V> = {
