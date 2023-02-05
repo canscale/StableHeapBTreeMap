@@ -9,6 +9,7 @@ import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Debug "mo:base/Debug";
 import Int "mo:base/Int";
+import Iter "mo:base/Iter";
 import O "mo:base/Order";
 import Nat "mo:base/Nat";
 import Stack "mo:base/Stack";
@@ -164,6 +165,256 @@ module {
         deletedValueResult
       }
     }
+  };
+
+  /// Returns an ascending order BTree iterator
+  public func entries<K, V>(t: BTree<K, V>): Iter.Iter<(K, V)> {
+    switch(t.root) {
+      case (#leaf(leafNode)) { return leafEntries(leafNode) };
+      case (#internal(internalNode)) { internalEntries(internalNode) };
+    };
+  };
+
+  func leafEntries<K, V>({ data }: Leaf<K, V>): Iter.Iter<(K, V)> {
+    var i: Nat = 0;
+    object {
+      public func next() : ?(K, V) {
+        if (i >= data.count) {
+          return null
+        } else {
+          let res = data.kvs[i];
+          i += 1;
+          return res
+        }
+      }
+    }
+  };
+
+  // Cursor type that keeps track of the current node and the current key-value index in the node 
+  type NodeCursor<K, V> = { node: Node<K, V>; kvIndex: Nat };
+
+  func internalEntries<K, V>(internal: Internal<K, V>): Iter.Iter<(K, V)> {
+    object {
+      // The nodeCursorStack keeps track of the current node and the current key-value index in the node
+      // We use a stack here to push to/pop off the next node cursor to visit
+      let nodeCursorStack = initializeNodeCursorStack(internal);
+
+      public func next(): ?(K, V) {
+        // pop the next node cursor off the stack
+        var nodeCursor = nodeCursorStack.pop();
+        switch(nodeCursor) {
+          case null { return null };
+          case (?{ node; kvIndex }) {
+            switch(node) {
+              // if a leaf node, iterate through the leaf node's next key-value pair
+              case (#leaf(leafNode)) {
+                let lastKV = leafNode.data.count - 1: Nat;
+                if (kvIndex > lastKV) {
+                  Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.internalEntries(), leaf kvIndex out of bounds");
+                };
+
+                let currentKV = switch(leafNode.data.kvs[kvIndex]) {
+                  case (?kv) { kv };
+                  case null { Debug.trap(
+                    "UNREACHABLE_ERROR: file a bug report! In BTree.internalEntries(), null key-value pair found in leaf node."
+                    # "leafNode.data.count=" # Nat.toText(leafNode.data.count) # ", kvIndex=" # Nat.toText(kvIndex)
+                  ) };
+                };
+                // if not at the last key-value pair, push the next key-value index of the leaf onto the stack and return the current key-value pair
+                if (kvIndex < lastKV) {
+                  nodeCursorStack.push({ node = #leaf(leafNode); kvIndex = kvIndex + 1 });
+                };
+
+                // return the current key-value pair
+                ?currentKV;
+              };
+              // if an internal node
+              case (#internal(internalNode)) {
+                let lastKV = internalNode.data.count - 1: Nat;
+                // Developer facing message in case of a bug
+                if (kvIndex > lastKV) {
+                  Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.internalEntries(), internal kvIndex out of bounds");
+                };
+
+                let currentKV = switch(internalNode.data.kvs[kvIndex]) {
+                  case (?kv) { kv };
+                  case null { Debug.trap(
+                    "UNREACHABLE_ERROR: file a bug report! In BTree.internalEntries(), null key-value pair found in internal node. " #
+                    "internal.data.count=" # Nat.toText(internalNode.data.count) # ", kvIndex=" # Nat.toText(kvIndex)
+                  ) };
+                };
+
+                let nextCursor = { node = #internal(internalNode); kvIndex = kvIndex + 1 };
+                // if not the last key-value pair, push the next key-value index of the internal node onto the stack
+                if (kvIndex < lastKV) {
+                  nodeCursorStack.push(nextCursor);
+                };
+                // traverse the next child's min subtree and push the resulting node cursors onto the stack
+                // then return the current key-value pair of the internal node
+                traverseMinSubtreeIter(nodeCursorStack, nextCursor);
+                ?currentKV
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  func initializeNodeCursorStack<K, V>(internal: Internal<K, V>): Stack.Stack<NodeCursor<K, V>> {
+    let nodeCursorStack = Stack.Stack<NodeCursor<K, V>>();
+    let nodeCursor: NodeCursor<K, V> = {
+      node = #internal(internal);
+      kvIndex = 0;
+    };
+
+    // push the initial cursor to the stack
+    nodeCursorStack.push(nodeCursor);
+    // then traverse left
+    traverseMinSubtreeIter(nodeCursorStack, nodeCursor);
+    nodeCursorStack;
+  };
+
+
+  // traverse the min subtree of the current node cursor, passing each new element to the node cursor stack
+  func traverseMinSubtreeIter<K, V>(nodeCursorStack: Stack.Stack<NodeCursor<K, V>>, nodeCursor: NodeCursor<K, V>): () {
+    var currentNode = nodeCursor.node;
+    var childIndex = nodeCursor.kvIndex;
+
+    label l loop {
+      switch(currentNode) {
+        // If currentNode is leaf, have hit the minimum element of the subtree and already pushed it's cursor to the stack
+        // so can return
+        case (#leaf(leafNode)) {
+          return;
+        };
+        // If currentNode is internal, add it's left most child to the stack and continue traversing
+        case (#internal(internalNode)) {
+          switch(internalNode.children[childIndex]) {
+            // Push the next min (left most) child node to the stack
+            case (?childNode) {
+              childIndex := 0;
+              currentNode := childNode;
+              nodeCursorStack.push({
+                node = currentNode;
+                kvIndex = childIndex;
+              });
+            };
+            case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In BTree.dfsTraverseIter(), null child node error") };
+          };
+        }
+      }
+    }
+  };
+
+  /// Returns an array of all the key-value pairs in the BTree
+  ///
+  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
+  public func toArray<K, V>(t: BTree<K, V>): [(K, V)] {
+    Buffer.toArray<(K, V)>(toBuffer<K, V>(t));
+  };
+
+  /// Returns a buffer of all the key-value pairs in the BTree.
+  ///
+  /// The Buffer class type is not stable returned is described in the Motoko-base library here:
+  /// https://github.com/dfinity/motoko-base/blob/6557fbefc9a03afff8e0c84591ea78190eb6f723/src/Buffer.mo#L67
+  ///
+  /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
+  public func toBuffer<K, V>(t: BTree<K, V>): Buffer.Buffer<(K, V)> {
+    // initialize the accumulator buffer to have the same size as the BTree (to avoid resizing)
+    let entriesAccumulator = Buffer.Buffer<(K, V)>(t.size);
+    switch(t.root) {
+      case (#leaf(leafNode)) { appendLeafKVs(leafNode, entriesAccumulator) };
+      case (#internal(internalNode)) { appendInternalKVs(internalNode, entriesAccumulator) };
+    };
+    entriesAccumulator;
+  };
+
+  // Appends all kvs in the leaf to the entriesAccumulator buffer 
+  func appendLeafKVs<K, V>({ data }: Leaf<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    var i = 0;
+    while (i < data.count) {
+      switch(data.kvs[i]) {
+        case (?kv) { entriesAccumulator.add(kv) };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In appendLeafEntries data.kvs[i] is null with data.count=" # Nat.toText(data.count) # " and i=" # Nat.toText(i)) };
+      };
+      i += 1;
+    };
+  };
+
+  // Iterates through the entire internal node, appending all kvs to the entriesAccumulator buffer
+  func appendInternalKVs<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    // Holds an internal node stack cursor for iterating through the BTree
+    let internalNodeStack = initializeInternalNodeStack(internal, entriesAccumulator);
+    var internalCursor = internalNodeStack.pop();
+
+    label l loop {
+      switch(internalCursor) {
+        case (?{ internal; kvIndex }) {
+          switch(internal.data.kvs[kvIndex]) {
+            case (?kv) { entriesAccumulator.add(kv) };
+            case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries internal.data.kvs[kvIndex] is null with internal.data.count=" # Nat.toText(internal.data.count) # " and kvIndex=" # Nat.toText(kvIndex)) };
+          };
+          let lastKV = (internal.data.count - 1: Nat);
+          if (kvIndex > lastKV) {
+            Debug.trap("UNREACHABLE_ERROR: file a bug report! In internalEntries kvIndex=" # Nat.toText(kvIndex) # " is greater than internal.data.count=" # Nat.toText(internal.data.count))
+          };
+
+          // push the new internalCursor onto the stack, and traverse the left child of the internal node
+          // increment the kvIndex of the internalCursor,
+          let nextCursor = { internal = internal; kvIndex = kvIndex + 1 };
+          // if the kvIndex is less than the number of keys in the internal node, push the new internalCursor onto the stack,
+          if (kvIndex < lastKV) {
+            internalNodeStack.push(nextCursor);
+          };
+
+          // traverse the next child's min subtree and push the resulting internal cursors to the stack
+          traverseInternalMinSubtree(internalNodeStack, nextCursor, entriesAccumulator);
+          // pop the next internalCursor off the stack and continue
+          internalCursor := internalNodeStack.pop();
+        };
+        // nothing left in the internalNodeStack, signalling that we have traversed the entire BTree and added all kv pairs to the entriesAccumulator
+        case null { return };
+      };
+    }
+  };
+
+  func initializeInternalNodeStack<K, V>(internal: Internal<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): Stack.Stack<InternalCursor<K, V>> {
+    let internalNodeStack = Stack.Stack<InternalCursor<K, V>>();
+    let internalCursor: InternalCursor<K, V> = {
+      internal;
+      kvIndex = 0;
+    };
+    internalNodeStack.push(internalCursor);
+    traverseInternalMinSubtree(internalNodeStack, internalCursor, entriesAccumulator);
+
+    internalNodeStack;
+  };
+
+  // traverse the min subtree of the current internal cursor, passing each new element to the node cursor stack
+  // once a leaf node is hit, appends all the leaf entries to the entriesAccumulator buffer and returns
+  func traverseInternalMinSubtree<K, V>(internalNodeStack: Stack.Stack<InternalCursor<K, V>>, internalCursor: InternalCursor<K, V>, entriesAccumulator: Buffer.Buffer<(K, V)>): () {
+    var currentNode = internalCursor.internal;
+    var childIndex = internalCursor.kvIndex;
+    label l loop {
+      switch(currentNode.children[childIndex]) {
+        // If hit a leaf, have hit the bottom of the min subtree, so can just append all leaf entries to the accumulator and return (no need to push to the stack)
+        case (?#leaf(leafChild)) {
+          appendLeafKVs(leafChild, entriesAccumulator);
+          return;
+        };
+        // If hit an internal node, update the currentNode and childIndex, and push the min child index of that internal node onto the stack
+        case (?#internal(internalNode)) {
+          currentNode := internalNode;
+          childIndex := 0;
+          internalNodeStack.push({
+            internal = internalNode;
+            kvIndex = childIndex;
+          });
+        };
+        case null { Debug.trap("UNREACHABLE_ERROR: file a bug report! In dfsTraverse, currentNode.children[childIndex] is null with currentNode.data.count=" # Nat.toText(currentNode.data.count) # " and childIndex=" # Nat.toText(childIndex)) };
+      };
+    };
   };
 
 
