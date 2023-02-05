@@ -3,11 +3,11 @@ import S "mo:matchers/Suite";
 import T "mo:matchers/Testable";
 
 import Array "mo:base/Array";
+import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 
 import BT "../src/BTree";
 import BTM "./BTreeMatchers";
-
 
 func testableNatBTree(t: BT.BTree<Nat, Nat>): T.TestableItem<BT.BTree<Nat, Nat>> {
   BTM.testableBTree(t, Nat.equal, Nat.equal, Nat.toText, Nat.toText)
@@ -2985,6 +2985,195 @@ let scanLimitSuite = S.suite("scanLimit", [
   ]),
 ]);
 
+let toArraySuite = S.suite("toArray", [
+  S.test("if the tree is empty",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      BT.toArray(t)
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [],
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      BT.toArray(t)
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [
+        (1, 1),
+        (2, 2),
+      ],
+    ))
+  ),
+  S.test("if the tree root is a completely full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+      BT.toArray(t)
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [
+        (1, 1),
+        (2, 2),
+        (3, 3),
+      ],
+    ))
+  ),
+  S.suite("if the tree root is an internal node with multiple levels", [
+    S.test("if the items were all inserted in order without any deletion",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+        BT.toArray(t);
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        Array.tabulate<(Nat, Nat)>(22, func(i) { (i+1, i+1) }),
+      ))
+    ),
+    S.test("if all the items were inserted in order with some deletion",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 11);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 12);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 13);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 14);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 16);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 18);
+        BT.toArray(t);
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        [
+          (1, 1),
+          (2, 2),
+          (3, 3),
+          (4, 4),
+          (5, 5),
+          (6, 6),
+          (7, 7),
+          (8, 8),
+          (9, 9),
+          (10, 10),
+          (15, 15),
+          (17, 17),
+          (19, 19),
+          (20, 20),
+          (21, 21),
+          (22, 22),
+        ],
+      ))
+    ),
+    S.test("with a completely full multi-level tree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [1,2,4,5,6,8,9,10,12,13,14,15,3,7,11]);
+        BT.toArray(t);
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        Array.tabulate<(Nat, Nat)>(15, func(i) { (i+1, i+1) }),
+      ))
+    ),
+  ]),
+]);
+
+let entriesSuite = S.suite("entries", [
+  S.test("if the tree is empty, returns an empty iterator",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      Iter.toArray(BT.entries(t));
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [],
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      Iter.toArray(BT.entries(t))
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [
+        (1, 1),
+        (2, 2),
+      ],
+    ))
+  ),
+  S.test("if the tree root is a completely full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(3, func(i) { i+1 }));
+      Iter.toArray(BT.entries(t))
+    },
+    M.equals(T.array<(Nat, Nat)>(
+      T.tuple2Testable(T.natTestable, T.natTestable),
+      [
+        (1, 1),
+        (2, 2),
+        (3, 3),
+      ],
+    ))
+  ),
+  S.suite("if the tree root is an internal node with multiple levels", [
+    S.test("if the items were all inserted in order without any deletion",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+        Iter.toArray(BT.entries(t));
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        Array.tabulate<(Nat, Nat)>(22, func(i) { (i+1, i+1) }),
+      ))
+    ),
+    S.test("if all the items were inserted in order with some deletion",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(22, func(i) { i+1 }));
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 11);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 12);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 13);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 14);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 16);
+        ignore BT.delete<Nat, Nat>(t, Nat.compare, 18);
+        Iter.toArray(BT.entries(t));
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        [
+          (1, 1),
+          (2, 2),
+          (3, 3),
+          (4, 4),
+          (5, 5),
+          (6, 6),
+          (7, 7),
+          (8, 8),
+          (9, 9),
+          (10, 10),
+          (15, 15),
+          (17, 17),
+          (19, 19),
+          (20, 20),
+          (21, 21),
+          (22, 22),
+        ],
+      ))
+    ),
+    S.test("with a completely full multi-level tree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [1,2,4,5,6,8,9,10,12,13,14,15,3,7,11]);
+        Iter.toArray(BT.entries(t));
+      },
+      M.equals(T.array<(Nat, Nat)>(
+        T.tuple2Testable(T.natTestable, T.natTestable),
+        Array.tabulate<(Nat, Nat)>(15, func(i) { (i+1, i+1) }),
+      ))
+    ),
+  ]),
+]);
 
 S.run(S.suite("BTree",
   [
@@ -2993,5 +3182,7 @@ S.run(S.suite("BTree",
     insertSuite,
     deleteSuite,
     scanLimitSuite,
+    toArraySuite,
+    entriesSuite
   ]
 ));
