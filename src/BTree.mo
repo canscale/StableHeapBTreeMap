@@ -226,6 +226,28 @@ module {
     }
   };
 
+  /// Deletes the minimum key in a BTree and returns its associated value. If the BTree is empty, returns null
+  public func deleteMin<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order): ?(K, V) {
+    switch(min(tree)) {
+      case (?(k, v)) {
+        ignore delete<K, V>(tree, compare, k);
+        ?(k, v);
+      };
+      case null { null }
+    }
+  };
+
+  /// Deletes the maximum key in a BTree and returns its associated value. If the BTree is empty, returns null
+  public func deleteMax<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order): ?(K, V) {
+    switch(max(tree)) {
+      case (?(k, v)) {
+        ignore delete<K, V>(tree, compare, k);
+        ?(k, v);
+      };
+      case null { null }
+    }
+  };
+
   /// Returns an ascending order BTree iterator
   public func entries<K, V>(t: BTree<K, V>): Iter.Iter<(K, V)> {
     switch(t.root) {
