@@ -14,7 +14,6 @@ import O "mo:base/Order";
 import Nat "mo:base/Nat";
 import Stack "mo:base/Stack";
 
-
 module {
   public type BTree<K, V> = Types.BTree<K, V>;
   public type Node<K, V> = Types.Node<K, V>;
@@ -698,7 +697,14 @@ module {
         limit = 0;
         nextKey = switch(data.kvs[elementIndex]) {
           case null { null };
-          case (?kv) { ?kv.0 };
+          case (?kv) {
+            switch(compare(kv.0, upperBound)) {
+              // if the next key is greater than the upper bound, have hit the upper bound, so return null
+              case (#greater) { null };
+              // otherwise less or equal to the upper bound, so return the next key
+              case _ { ?kv.0 };
+            };
+          };
         };
       };
     };
@@ -717,12 +723,14 @@ module {
         if (idx == 0) { 
           return {
             resultBuffer;
-            limit = 0;
+            limit = remainingLimit;
             nextKey = null;
           }
         };
 
-        if (idx == data.count) { idx - 1: Nat } else { idx };
+        // We are iterating in reverse and did not find the upper bound, choose the previous element
+        // idx is not 0, so we can safely subtract 1
+        idx - 1: Nat;
       };
     };
 
@@ -812,7 +820,7 @@ module {
 
     label l while (remainingLimit > 0) {
       switch(nodeStack.pop()) {
-        case (?#leafCursor(leaf)) { 
+        case (?#leafCursor(leaf)) {
           let intermediateScanResult = iterScanLimitLeafForward(leaf, compare, lowerBound, upperBound, remainingLimit);
           resultBuffer.append(intermediateScanResult.resultBuffer);
           remainingLimit := intermediateScanResult.limit;
