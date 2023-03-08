@@ -2959,6 +2959,23 @@ let scanLimitSuite = S.suite("scanLimit", [
           nextKey = ?3;
         }))
       ),
+      S.test("if there are gaps in the contents of the BTree (i.e. every other number) and the limit is less than the result set",
+        do {
+          let t = quickCreateBTreeWithKVPairs(8, Array.tabulate<Nat>(4, func(i) { i*2+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            2,
+            8,
+            #fwd,
+            2,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(3, 3), (5, 5)];
+          nextKey = ?7;
+        }))
+      ),
     ]),
     S.suite("with BTree as multiple levels", [
       S.test("if lower bound is greater than the greatest key returns empty response",
@@ -3064,6 +3081,74 @@ let scanLimitSuite = S.suite("scanLimit", [
             nextKey = null;
           }))
         ),
+        S.test("if bounds are from the first to right before a root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(4, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              0,
+              4,
+              #fwd,
+              2,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(1, 1), (3, 3)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a 3-level root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              10,
+              16,
+              #fwd,
+              3,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(11, 11), (13, 13), (15, 15)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a first non-root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              14,
+              22,
+              #fwd,
+              4,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(15, 15), (17, 17), (19, 19), (21, 21)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a last non-root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              2,
+              10,
+              #fwd,
+              4,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(3, 3), (5, 5), (7, 7), (9, 9)];
+            nextKey = null;
+          }))
+        ),
         S.test("if bounds are from the first to an root internal kv",
           do {
             let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
@@ -3078,6 +3163,23 @@ let scanLimitSuite = S.suite("scanLimit", [
           },
           M.equals(BTM.testableNatBTreeScanLimitResult({
             results = quickCreateNatResultSet(1, 9);
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(4, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              0,
+              6,
+              #fwd,
+              3,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(1, 1), (3, 3), (5, 5)];
             nextKey = null;
           }))
         ),
@@ -3394,6 +3496,23 @@ let scanLimitSuite = S.suite("scanLimit", [
           nextKey = ?1;
         }))
       ),
+      S.test("if there are gaps in the contents of the BTree (i.e. every other number) and the limit is less than the result set",
+        do {
+          let t = quickCreateBTreeWithKVPairs(8, Array.tabulate<Nat>(4, func(i) { i*2+1 }));
+          BT.scanLimit(
+            t,
+            Nat.compare,
+            0,
+            6,
+            #bwd,
+            2,
+          )
+        },
+        M.equals(BTM.testableNatBTreeScanLimitResult({
+          results = [(5, 5), (3, 3)];
+          nextKey = ?1;
+        }))
+      ),
     ]),
     S.suite("with BTree as multiple levels", [
       S.test("if lower bound is greater than the greatest key returns empty response",
@@ -3499,6 +3618,23 @@ let scanLimitSuite = S.suite("scanLimit", [
             nextKey = null;
           }))
         ),
+        S.test("if bounds are from the last element to right before a root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(5, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              6,
+              10,
+              #bwd,
+              2,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(9, 9), (7, 7)];
+            nextKey = null;
+          }))
+        ),
         S.test("if bounds are from the first to an root internal kv",
           do {
             let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(31, func(i) { i+1 }));
@@ -3514,6 +3650,74 @@ let scanLimitSuite = S.suite("scanLimit", [
           M.equals(BTM.testableNatBTreeScanLimitResult({
             results = quickCreateNatResultSetReverse(9, 1);
             nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a 3-level root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              18,
+              24,
+              #bwd,
+              3,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(23, 23), (21, 21), (19, 19)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a first non-root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              12,
+              20,
+              #bwd,
+              4,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(19, 19), (17, 17), (15, 15), (13, 13)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to right before a last non-root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is equal to the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(13, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              6,
+              14,
+              #bwd,
+              4,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(13, 13), (11, 11), (9, 9), (7, 7)];
+            nextKey = null;
+          }))
+        ),
+        S.test("if bounds are from the first to an root internal kv, there are gaps in the contents of the BTree (i.e. every other number), and the limit is less than the result set",
+          do {
+            let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(4, func(i) { i*2+1 }));
+            BT.scanLimit(
+              t,
+              Nat.compare,
+              0,
+              6,
+              #bwd,
+              2,
+            )
+          },
+          M.equals(BTM.testableNatBTreeScanLimitResult({
+            results = [(5, 5), (3, 3)];
+            nextKey = ?1;
           }))
         ),
         S.test("if bounds are from a middle leaf element to the last element",
