@@ -24,7 +24,7 @@ module {
   /// Initializes an empty BTree. By default, set the BTree to have order 8, and enforce the the order be greater than 4, but lower than 512
   public func init<K, V>(order: ?Nat): BTree<K, V> {
     let btreeOrder = switch(order) {
-      case null { 8 };
+      case null { 32 };
       case (?providedOrder) { 
         if (providedOrder < 4) { Debug.trap("provided order=" # Nat.toText(providedOrder) # ", but Btree order must be >= 4 and <= 512") };
         if (providedOrder > 512) { Debug.trap("provided order=" # Nat.toText(providedOrder) # ", but Btree order must be >= 4 and <= 512") };

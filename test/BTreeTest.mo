@@ -50,17 +50,17 @@ let initSuite = S.suite("init", [
       order = 4;
     }))
   ),
-  S.test("if null order is provided, initializes an empty BTree with order 8 to have the correct number of keys (order - 1)",
+  S.test("if null order is provided, initializes an empty BTree with order 32 to have the correct number of keys (order - 1)",
     BT.init<Nat, Nat>(null),
     M.equals(testableNatBTree({
       var root = #leaf({
         data = {
-          kvs = [var null, null, null, null, null, null, null];
+          kvs = [var null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null];
           var count = 0;
         }
       });
       var size = 0;
-      order = 8;
+      order = 32;
     }))
   ),
   /* Comment out to test that these tests trap on BTree initialization
