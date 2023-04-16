@@ -1566,6 +1566,23 @@ let insertSuite = S.suite("insert", [
 
 let substituteKeySuite = S.suite("substituteKey", [
   S.suite("root as leaf tests", [
+    S.test("if the key does not exist, does nothing",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [3, 7, 10]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 11, 13);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(3, 3), ?(7, 7), ?(10, 10)];
+            var count = 3;
+          }
+        });
+        var size = 3;
+        order = 4;
+      }))
+    ),
     S.test("substitutes the key in a BTree leaf node",
       do {
         let t = quickCreateBTreeWithKVPairs(4, [3, 7, 10]);
@@ -1602,6 +1619,44 @@ let substituteKeySuite = S.suite("substituteKey", [
     ),
   ]),
   S.suite("root as internal tests with order 4", [
+    S.test("if the key does not exist, does nothing",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 80, 80);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(50, 50), ?(125, 125), ?(175, 175)];
+            var count = 3;
+          };
+          children = [var
+            ?#leaf({
+              data = {
+                kvs = [var ?(5, 5), ?(25, 25), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(75, 75), ?(100, 100), ?(150, 150)];
+                var count = 3;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(200, 200), ?(225, 225), ?(250, 250)];
+                var count = 3;
+              };
+            }),
+            null
+          ];
+        });
+        var size = 11;
+        order = 4;
+      }))
+    ),
     S.test(
       "substitutes the key in a BTree internal node, swapping it's position in the tree",
       do {
