@@ -1564,6 +1564,195 @@ let insertSuite = S.suite("insert", [
   ])
 ]);
 
+let substituteKeySuite = S.suite("substituteKey", [
+  S.suite("root as leaf tests", [
+    S.test("if the key does not exist, does nothing",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [3, 7, 10]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 11, 13);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(3, 3), ?(7, 7), ?(10, 10)];
+            var count = 3;
+          }
+        });
+        var size = 3;
+        order = 4;
+      }))
+    ),
+    S.test("substitutes the key in a BTree leaf node",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [3, 7, 10]);
+        let v = BT.substituteKey<Nat, Nat>(t, Nat.compare, 10, 11);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(3, 3), ?(7, 7), ?(11, 10)];
+            var count = 3;
+          }
+        });
+        var size = 3;
+        order = 4;
+      }))
+    ),
+    S.test("substitutes the key in a BTree leaf node, if the key is less than all elements in the tree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [3, 7, 10]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 3, 1);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #leaf({
+          data = {
+            kvs = [var ?(1, 3), ?(7, 7), ?(10, 10)];
+            var count = 3;
+          }
+        });
+        var size = 3;
+        order = 4;
+      }))
+    ),
+  ]),
+  S.suite("root as internal tests with order 4", [
+    S.test("if the key does not exist, does nothing",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 80, 80);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(50, 50), ?(125, 125), ?(200, 200)];
+            var count = 3;
+          };
+          children = [var
+            ?#leaf({
+              data = {
+                kvs = [var ?(5, 5), ?(25, 25), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(75, 75), ?(100, 100), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(150, 150), ?(175, 175), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(225, 225), ?(250, 250), null];
+                var count = 2;
+              };
+            })
+          ];
+        });
+        var size = 11;
+        order = 4;
+      }))
+    ),
+    S.test(
+      "substitutes the key in a BTree internal node, swapping it's position in the tree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 200, 80);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(50, 50), ?(125, 125), ?(175, 175)];
+            var count = 3;
+          };
+          children = [var
+            ?#leaf({
+              data = {
+                kvs = [var ?(5, 5), ?(25, 25), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(75, 75), ?(80, 200), ?(100, 100)];
+                var count = 3;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(150, 150), null, null];
+                var count = 1;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(225, 225), ?(250, 250), null];
+                var count = 2;
+              };
+            })
+          ];
+        });
+        var size = 11;
+        order = 4;
+      }))
+    ),
+    S.test(
+      "substitutes the key in a BTree internal node, swapping it's position in the tree, if the key is less than all elements in the tree",
+      do {
+        let t = quickCreateBTreeWithKVPairs(4, [5, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]);
+        let _ = BT.substituteKey<Nat, Nat>(t, Nat.compare, 5, 300);
+        t;
+      },
+      M.equals(testableNatBTree({
+        var root = #internal({
+          data = {
+            kvs = [var ?(50, 50), ?(125, 125), ?(200, 200)];
+            var count = 3;
+          };
+          children = [var
+            ?#leaf({
+              data = {
+                kvs = [var ?(25, 25), null, null];
+                var count = 1;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(75, 75), ?(100, 100), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(150, 150), ?(175, 175), null];
+                var count = 2;
+              };
+            }),
+            ?#leaf({
+              data = {
+                kvs = [var ?(225, 225), ?(250, 250), ?(300, 5)];
+                var count = 3;
+              };
+            })
+          ];
+        });
+        var size = 11;
+        order = 4;
+      }))
+    ),
+  ])
+]);
+
 let deleteSuite = S.suite("delete", [
   S.suite("deletion from a BTree with root as leaf (tree height = 1)", [
     S.test("if tree is empty returns null",
@@ -4206,6 +4395,7 @@ S.run(S.suite("BTree",
     initSuite,
     getSuite,
     insertSuite,
+    substituteKeySuite,
     updateSuite,
     deleteSuite,
     scanLimitSuite,
