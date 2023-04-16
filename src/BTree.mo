@@ -126,6 +126,22 @@ module {
     };
   };
 
+  /// Substitutes in a new key in for the current/old key, preserving the same attributes as the previous key (if the key previously exists in the BTree).
+  /// This returns the value associated with the old key if it exists, otherwise it returns null
+  ///
+  /// Note: Under the hood, this is implemented as two operations:
+  /// 1) delete the old key
+  /// 2) insert the new key with the same value as the previously deleted old key
+  public func substituteKey<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, oldKey: K, newKey: K): ?V {
+    switch(delete<K, V>(tree, compare, oldKey)) {
+      case null { null };
+      case (?v) {
+        ignore insert<K, V>(tree, compare, newKey, v);
+        ?v
+      }
+    }
+  };
+
   /// Applies a function to the value of an existing key of a BTree
   /// If the element does not yet exist in the BTree it creates a new key and value according to the result of passing null to the updateFunction
   public func update<K, V>(tree: BTree<K, V>, compare: (K, K) -> O.Order, key: K, updateFunction: (?V) -> V): ?V {
