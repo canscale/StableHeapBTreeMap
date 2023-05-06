@@ -8,7 +8,7 @@ let packages = [
   },
   { name = "matchers"
   , repo = "https://github.com/kritzcreek/motoko-matchers.git"
-  , version = "v1.2.0"
+  , version = "v1.3.0"
   , dependencies = [ "base" ]
   }
 ]: List Package
