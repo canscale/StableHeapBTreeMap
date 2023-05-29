@@ -1,0 +1,11 @@
+[dependencies]
+base = "0.8.7"
+matchers = "https://github.com/kritzcreek/motoko-matchers#v1.3.0"
+
+[package]
+name = "stableheapbtreemap"
+version = "1.3.0"
+description = "An imperative BTreeMap that can persist across upgrades via a stable variable in heap memory"
+repository = "https://github.com/canscale/StableHeapBTreeMap"
+keywords = ["btree", "map", "btreemap", "stable", "sorted"]
+license = "Apache-2.0"
