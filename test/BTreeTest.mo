@@ -4181,6 +4181,72 @@ let toArraySuite = S.suite("toArray", [
   ]),
 ]);
 
+let toKeyArraySuite = S.suite("keys", [
+  S.test("if the tree is empty, returns an empty array",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      BT.toKeyArray(t);
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      [],
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      BT.toKeyArray(t)
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      [1, 2],
+    ))
+  ),
+  S.test("if 15 items were inserted in order without any deletion",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(15, func(i) { i+1 }));
+      BT.toKeyArray(t);
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      Array.tabulate<Nat>(15, func(i) { i+1 }),
+    ))
+  ),
+]);
+
+let toValueArraySuite = S.suite("values", [
+  S.test("if the tree is empty, returns an empty array",
+    do {
+      let t = BT.init<Nat, Nat>(null);
+      BT.toValueArray(t);
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      [],
+    ))
+  ),
+  S.test("if the tree root is a partially full leaf",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(2, func(i) { i+1 }));
+      BT.toValueArray(t)
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      [1, 2],
+    ))
+  ),
+  S.test("if 15 items were inserted in order without any deletion",
+    do {
+      let t = quickCreateBTreeWithKVPairs(4, Array.tabulate<Nat>(15, func(i) { i+1 }));
+      BT.toValueArray(t);
+    },
+    M.equals(T.array<Nat>(
+      T.natTestable,
+      Array.tabulate<Nat>(15, func(i) { i+1 }),
+    ))
+  ),
+]);
+
 let entriesSuite = S.suite("entries", [
   S.test("if the tree is empty, returns an empty iterator",
     do {
@@ -4400,6 +4466,8 @@ S.run(S.suite("BTree",
     deleteSuite,
     scanLimitSuite,
     toArraySuite,
+    toKeyArraySuite,
+    toValueArraySuite,
     entriesSuite,
     minSuite,
     maxSuite,

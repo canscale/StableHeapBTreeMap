@@ -271,6 +271,22 @@ module {
     };
   };
 
+  public func toKeyArray<K, V>(t: BTree<K, V>): [K] {
+    let keyBuffer = Buffer.Buffer<K>(t.size);
+    for ((k, _) in entries<K, V>(t)) {
+      keyBuffer.add(k);
+    };
+    Buffer.toArray(keyBuffer)
+  };
+
+  public func toValueArray<K, V>(t: BTree<K, V>): [V] {
+    let valueBuffer = Buffer.Buffer<V>(t.size);
+    for ((_, v) in entries<K, V>(t)) {
+      valueBuffer.add(v);
+    };
+    Buffer.toArray(valueBuffer)
+  };
+
   /// Returns an array of all the key-value pairs in the BTree
   ///
   /// Note: If the BTree contains more entries than the message instruction limit will allow you to process in across consensus this may trap mid-iteration
