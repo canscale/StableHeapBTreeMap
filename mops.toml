@@ -1,6 +1,8 @@
 [dependencies]
 base = "0.8.7"
-matchers = "https://github.com/kritzcreek/motoko-matchers#v1.3.0"
+
+[dev-dependencies]
+matchers = "https://github.com/kritzcreek/motoko-matchers#v1.3.0@3dac8a071b69e4e651b25a7d9683fe831eb7cffd"
 
 [package]
 name = "stableheapbtreemap"
