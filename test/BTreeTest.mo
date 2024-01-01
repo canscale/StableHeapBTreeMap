@@ -93,6 +93,43 @@ let initSuite = S.suite("init", [
   */
 ]);
 
+let clearSuite = S.suite("clear", [
+  S.test("on an empty BTree, returns an empty BTree",
+    do {
+      let bt = BT.init<Nat, Nat>(?4);
+      BT.clear<Nat, Nat>(bt);
+      bt;
+    },
+    M.equals(testableNatBTree({
+      var root = #leaf({
+        data = {
+          kvs = [var null, null, null];
+          var count = 0;
+        }
+      });
+      var size = 0;
+      order = 4;
+    }))
+  ),
+  S.test("on a BTree with elements, returns an empty BTree",
+    do {
+      let bt = quickCreateBTreeWithKVPairs(4, [2, 4, 6]);
+      BT.clear<Nat, Nat>(bt);
+      bt;
+    },
+    M.equals(testableNatBTree({
+      var root = #leaf({
+        data = {
+          kvs = [var null, null, null];
+          var count = 0;
+        }
+      });
+      var size = 0;
+      order = 4;
+    }))
+  )
+]);
+
 let getSuite = S.suite("get", [
   S.test("returns null on an empty BTree",
     BT.get<Nat, Nat>(BT.init<Nat, Nat>(?4), Nat.compare, 5),
@@ -4459,6 +4496,7 @@ let maxSuite = S.suite("max", [
 S.run(S.suite("BTree",
   [
     initSuite,
+    clearSuite,
     getSuite,
     insertSuite,
     substituteKeySuite,
