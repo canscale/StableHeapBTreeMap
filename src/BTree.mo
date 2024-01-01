@@ -43,6 +43,17 @@ module {
       order = btreeOrder;
     }
   };
+
+  /// Clears all entries from a BTree
+  public func clear<K, V>(tree: BTree<K, V>): () {
+    tree.root := #leaf({
+      data = {
+        kvs = Array.tabulateVar<?(K, V)>(tree.order - 1, func(i) { null });
+        var count = 0;
+      };
+    });
+    tree.size := 0;
+  };
   
   /// Allows one to quickly create a BTree from an array of key value pairs
   public func fromArray<K, V>(order: Nat, compare: (K, K) -> O.Order, kvPairs: [(K, V)]): BTree<K, V> {
